@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "rpi-lcars"
+version = "0.1.0"
+description = ""
+authors = ["Patrick White <whitep@vcu.edu>"]
+readme = "README.md"
+packages = [{include = "rpi_lcars"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pygame = "^2.6.1"
+pillow = "^11.2.1"
+psutil = "^7.0.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
