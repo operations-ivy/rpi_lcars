@@ -26,78 +26,18 @@ class GIFImage(object):
         return pygame.rect.Rect((0,0), self.image.size)
 
     def get_frames(self):
-        image = self.image
-
-        pal = image.getpalette()
-        base_palette = []
-        for i in range(0, len(pal), 3):
-            rgb = pal[i:i+3]
-            base_palette.append(rgb)
-
-        all_tiles = []
+        self.frames = []
         try:
-            while 1:
-                if not image.tile:
-                    image.seek(0)
-                if image.tile:
-                    all_tiles.append(image.tile[0][3][0])
-                image.seek(image.tell()+1)
-        except EOFError:
-            image.seek(0)
+            while True:
+                self.image.seek(self.image.tell() + 1)
+                frame = self.image.convert('RGBA')
+                mode = frame.mode
+                size = frame.size
+                data = frame.tobytes()
 
-        all_tiles = tuple(set(all_tiles))
-
-        try:
-            while 1:
-                try:
-                    duration = self.duration if self.duration else image.info["duration"]
-                except:
-                    duration = 100
-
-                duration *= .001 #convert to milliseconds!
-                cons = False
-
-                x0, y0, x1, y1 = (0, 0) + image.size
-                if image.tile:
-                    tile = image.tile
-                else:
-                    image.seek(0)
-                    tile = image.tile
-                if len(tile) > 0:
-                    x0, y0, x1, y1 = tile[0][1]
-
-                if all_tiles:
-                    if all_tiles in ((6,), (7,)):
-                        cons = True
-                        pal = image.getpalette()
-                        palette = []
-                        for i in range(0, len(pal), 3):
-                            rgb = pal[i:i+3]
-                            palette.append(rgb)
-                    elif all_tiles in ((7, 8), (8, 7)):
-                        pal = image.getpalette()
-                        palette = []
-                        for i in range(0, len(pal), 3):
-                            rgb = pal[i:i+3]
-                            palette.append(rgb)
-                    else:
-                        palette = base_palette
-                else:
-                    palette = base_palette
-
-                imgdata = image.tobytes() if (hasattr(image, "tobytes")) else image.tostring()
-                pi = pygame.image.fromstring(imgdata, image.size, image.mode)
-                pi.set_palette(palette)
-                if "transparency" in image.info:
-                    pi.set_colorkey(image.info["transparency"])
-                pi2 = pygame.Surface(image.size, SRCALPHA)
-                if cons:
-                    for i in self.frames:
-                        pi2.blit(i[0], (0,0))
-                pi2.blit(pi, (x0, y0), (x0, y0, x1-x0, y1-y0))
-
-                self.frames.append([pi2, duration])
-                image.seek(image.tell()+1)
+                duration = self.image.info.get('duration', 100)
+                pi = pygame.image.fromstring(data, size, mode)
+                self.frames.append((pi, duration))
         except EOFError:
             pass
 
