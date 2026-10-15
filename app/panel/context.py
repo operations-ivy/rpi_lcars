@@ -9,9 +9,9 @@ from panel import lock as L
 from ui.utils import sound
 
 class Panel:
-    def __init__(self, ha, lock, night, metrics, cfg=config, clock=time.monotonic, weather=None):
+    def __init__(self, ha, lock, night, metrics, cfg=config, clock=time.monotonic, weather=None, room=None):
         self.ha, self.lock, self.night, self.metrics = ha, lock, night, metrics
-        self.cfg, self.clock, self.weather = cfg, clock, weather
+        self.cfg, self.clock, self.weather, self.room = cfg, clock, weather, room
 
     @property
     def read_only(self):
@@ -63,6 +63,15 @@ class Panel:
         """(temperature, condition), either may be None."""
         current = self.weather.current() if self.weather else {}
         return current.get("temperature"), current.get("condition")
+
+    def room_line(self):
+        """(text, ok) for the room sensor, or None when there's no sensor."""
+        if self.room is None:
+            return None
+        name = self.cfg.ROOM_NAME
+        if not self.room.fresh():
+            return f"{name} SENSOR OFFLINE", False
+        return f"{name} {self.room.temperature:.1f}°F  {self.room.humidity:.0f}%", True
 
     def weather_stale(self):
         age = self.weather.age() if self.weather else None

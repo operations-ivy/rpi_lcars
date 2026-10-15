@@ -8,6 +8,7 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 import config  # noqa: E402
 from datasources.homeassistant import HomeAssistant  # noqa: E402
+from datasources.room import Room  # noqa: E402
 from datasources.weather import Weather  # noqa: E402
 from metrics import Metrics  # noqa: E402
 from panel.context import Panel  # noqa: E402
@@ -29,10 +30,14 @@ def main():
     ha.start()
     weather = Weather(config.WEATHER_POINT, config.WEATHER_POLL_SECONDS, metrics)
     weather.start()
+    room = None
+    if config.ROOM_SENSOR:
+        room = Room(config.ROOM_I2C_BUS, config.ROOM_I2C_ADDRESS, config.ROOM_OFFSET, metrics=metrics)
+        room.start()
     lock = PanelLock(config.PIN, config.IDLE_RELOCK_SECONDS, config.MISSES_BEFORE_LOCKOUT,
                      config.LOCKOUT_SECONDS, config.MAX_LOCKOUT_SECONDS)
     night = Night(config.NIGHT, config.NIGHT_LEVEL, config.DAY_LEVEL, config.WAKE_SECONDS, Backlight())
-    panel = Panel(ha, lock, night, metrics, weather=weather)
+    panel = Panel(ha, lock, night, metrics, weather=weather, room=room)
     ui = UserInterface(ScreenStatus(panel), config.RESOLUTION, config.UI_PLACEMENT_MODE, config.FPS,
                        config.DEV_MODE, config.SOUND, fullscreen=config.FULLSCREEN, panel=panel,
                        colour_level=config.COLOUR_LEVEL)

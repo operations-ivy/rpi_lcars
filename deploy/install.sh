@@ -8,13 +8,20 @@ here=$(cd "$(dirname "$0")" && pwd)
 # pygame and friends from Debian (no venv to build on the Pi); cage is the
 # compositor; grim takes screenshots of the panel for checking it remotely.
 sudo apt-get install -y --no-install-recommends cage grim \
-    python3-pygame python3-psutil python3-pil python3-pytest
+    python3-pygame python3-psutil python3-pil python3-pytest i2c-tools
 
 mkdir -p ~/.config/lcars ~/.config/systemd/user
 if [ ! -f ~/.config/lcars/env ]; then
     install -m 600 "$here/lcars.env.example" ~/.config/lcars/env
 fi
 cp "$here/lcars-deploy.service" "$here/lcars-deploy.timer" ~/.config/systemd/user/
+
+# The I2C bus on the 40-pin header (/dev/i2c-1), for the room sensor; the
+# touchscreen has its own bus. Takes effect at the next boot.
+if [ ! -e /dev/i2c-1 ]; then
+    sudo raspi-config nonint do_i2c 0
+    echo "install: I2C enabled; reboot for /dev/i2c-1 (sudo reboot)"
+fi
 
 sudo cp "$here/90-backlight.rules" /etc/udev/rules.d/
 sudo udevadm trigger --subsystem-match=backlight --action=add
