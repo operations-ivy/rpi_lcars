@@ -21,6 +21,9 @@ StandardError=journal
 UtmpIdentifier=tty1
 UtmpMode=user
 Environment=XDG_SESSION_TYPE=wayland SDL_VIDEODRIVER=wayland LCARS_FULLSCREEN=true PYTHONUNBUFFERED=1
+# SDL's default renderer segfaults in set_mode on the Pi's GPU under cage;
+# OpenGL ES 2 works (probed on brick1982, 2026-10-15).
+Environment=SDL_RENDER_DRIVER=opengles2
 # A transparent cursor theme (deploy/blank-cursors): the touchscreen counts as
 # a pointer, so cage would otherwise draw an arrow on the panel.
 Environment=XCURSOR_PATH=/usr/local/share/lcars/cursors XCURSOR_THEME=default
