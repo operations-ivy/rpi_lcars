@@ -23,10 +23,23 @@ def _labels(labels):
     return "{" + ",".join(f'{k}="{v}"' for k, v in sorted(labels)) + "}"
 
 
+# Every label value the code can count, shown as 0 from the start: a counter
+# that only appears on its first event reads as "no data", not zero.
+KNOWN = {
+    "lcars_unlock_attempts_total": ("result", ("granted", "denied", "locked_out", "hard_locked", "no_code")),
+    "lcars_relocks_total": ("reason", ("idle", "dark", "hard_locked", "button")),
+    "lcars_commands_total": ("action", ("set_temperature", "set_hvac_mode")),
+    "lcars_taps_total": ("woke", ("true", "false")),
+}
+
+
 class Metrics:
     def __init__(self):
         self._values = {}
         self._lock = threading.Lock()
+        for name, (label, values) in KNOWN.items():
+            for value in values:
+                self.inc(name, 0, **{label: value})
 
     def inc(self, name, amount=1, **labels):
         key = (name, tuple(sorted(labels.items())))
