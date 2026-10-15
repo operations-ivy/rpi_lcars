@@ -1,4 +1,5 @@
-"""What every screen shares: Home Assistant, the lock, night and the metrics.
+"""What every screen shares: Home Assistant, the weather, the lock, night and
+the metrics.
 The UI loop calls tick() every frame and tap() on every touch; the screens
 read from it and never talk to Home Assistant themselves."""
 import time
@@ -7,18 +8,14 @@ import config
 from panel import lock as L
 from ui.utils import sound
 
-WEATHER_LABELS = {
-    "clear-night": "CLEAR", "cloudy": "CLOUDY", "exceptional": "EXCEPTIONAL", "fog": "FOG",
-    "hail": "HAIL", "lightning": "LIGHTNING", "lightning-rainy": "THUNDERSTORMS",
-    "partlycloudy": "PARTLY CLOUDY", "pouring": "HEAVY RAIN", "rainy": "RAIN", "snowy": "SNOW",
-    "snowy-rainy": "SLEET", "sunny": "SUNNY", "windy": "WINDY", "windy-variant": "WINDY",
-}
-
-
 class Panel:
-    def __init__(self, ha, lock, night, metrics, cfg=config, clock=time.monotonic):
+    def __init__(self, ha, lock, night, metrics, cfg=config, clock=time.monotonic, weather=None):
         self.ha, self.lock, self.night, self.metrics = ha, lock, night, metrics
-        self.cfg, self.clock = cfg, clock
+        self.cfg, self.clock, self.weather = cfg, clock, weather
+
+    @property
+    def read_only(self):
+        return self.cfg.READ_ONLY
 
     # Touches and frames.
 
@@ -62,12 +59,24 @@ class Panel:
         return (self.ha.number(self.cfg.SETPOINT_MIN_ENTITY, 64.0),
                 self.ha.number(self.cfg.SETPOINT_MAX_ENTITY, 76.0))
 
-    def weather(self):
-        """(temperature, condition label), either may be None."""
-        attrs = self.ha.attrs(self.cfg.WEATHER)
-        condition = self.ha.value(self.cfg.WEATHER)
-        label = WEATHER_LABELS.get(condition, condition.upper()) if condition else None
-        return attrs.get("temperature"), label
+    def outside(self):
+        """(temperature, condition), either may be None."""
+        current = self.weather.current() if self.weather else {}
+        return current.get("temperature"), current.get("condition")
+
+    def weather_stale(self):
+        age = self.weather.age() if self.weather else None
+        return age is None or age > self.cfg.WEATHER_STALE_SECONDS
+
+    def alert_line(self):
+        """(text, colour kind) for the weather alerts: "alert", "ok" or "unknown"."""
+        alerts = self.weather.alerts() if self.weather else None
+        if alerts is None:
+            return "WEATHER ALERTS UNAVAILABLE", "unknown"
+        if not alerts:
+            return "NO ACTIVE WEATHER ALERTS", "ok"
+        more = f" +{len(alerts) - 1} MORE" if len(alerts) > 1 else ""
+        return f"WEATHER ALERT: {alerts[0]['event']}{more}", "alert"
 
     def link(self):
         """(ok, text) for the Home Assistant link line."""
@@ -80,7 +89,7 @@ class Panel:
     # Changes, only while the lock allows them.
 
     def call(self, domain, service, action, **data):
-        if not self.lock.can_change:
+        if self.read_only or not self.lock.can_change:
             return False
         self.ha.call(domain, service, **data)
         self.metrics.inc("lcars_commands_total", action=action)

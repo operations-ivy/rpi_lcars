@@ -27,6 +27,12 @@ FPS = int(_float("LCARS_FPS", 15))
 DEV_MODE = _bool("LCARS_DEV_MODE", False)
 UI_PLACEMENT_MODE = _bool("LCARS_UI_PLACEMENT_MODE", False)
 SOUND = _bool("LCARS_SOUND", True)
+# Everything drawn is multiplied by this (1.0: the stock LCARS colours; 0.8:
+# a fifth darker). Separate from the backlight, which also darkens black.
+COLOUR_LEVEL = min(1.0, max(0.2, _float("LCARS_COLOUR_LEVEL", 1.0)))
+# Show the thermostat, never change it: no climate control, no keypad, and
+# no service calls go to Home Assistant.
+READ_ONLY = _bool("LCARS_READ_ONLY", False)
 
 # The code that opens climate control. Empty: the panel can't be opened with a
 # code, only from Home Assistant (input_select.lcars_panel_lock: unlocked).
@@ -43,10 +49,17 @@ HA_URL = _str("HA_URL", "https://homeassistant.brick.nozdormu.cloud").rstrip("/"
 HA_TOKEN = _str("HA_TOKEN")
 HA_POLL_SECONDS = _float("HA_POLL_SECONDS", 5)
 THERMOSTAT = _str("LCARS_THERMOSTAT", "climate.thermostat")
-WEATHER = _str("LCARS_WEATHER", "weather.forecast_home")
 LOCK_ENTITY = "input_select.lcars_panel_lock"
 SETPOINT_MIN_ENTITY = "input_number.thermostat_setpoint_min"
 SETPOINT_MAX_ENTITY = "input_number.thermostat_setpoint_max"
+# Weather for this point ("lat,lon"; empty: no weather), from the National
+# Weather Service, then Open-Meteo, then MET Norway (datasources/weather.py).
+# Kept in the env file, not here: it's where the panel is.
+WEATHER_POINT = _str("LCARS_WEATHER_POINT")
+WEATHER_POLL_SECONDS = _float("LCARS_WEATHER_POLL_SECONDS", 300)
+# Weather older than this is shown as stale.
+WEATHER_STALE_SECONDS = _float("LCARS_WEATHER_STALE_SECONDS", 3600)
+
 # The ecobee keeps heat and cool setpoints at least this far apart in auto.
 HEAT_COOL_GAP = _float("LCARS_HEAT_COOL_GAP", 5)
 # Taps on the arrows gather for this long before going to Home Assistant.

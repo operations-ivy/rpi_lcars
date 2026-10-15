@@ -31,8 +31,8 @@ class LcarsLabel(LcarsWidget):
     """Text anchored at (top, x): its left edge, centre or right edge sits on x.
     Re-renders only when the text or colour changes."""
 
-    def __init__(self, colour, pos, text="", size=1.0, align="left"):
-        self.colour, self.text, self.align = colour, None, align
+    def __init__(self, colour, pos, text="", size=1.0, align="left", max_width=None):
+        self.colour, self.text, self.align, self.max_width = colour, None, align, max_width
         self.font = font(size)
         self.anchor = pos
         self.image = self.font.render(" ", True, colour)
@@ -45,7 +45,14 @@ class LcarsLabel(LcarsWidget):
         if text == self.text and colour == getattr(self, "_drawn_colour", None):
             return
         self.text, self._drawn_colour = text, colour
-        self.image = self.font.render(text or " ", True, colour)
+        shown = text
+        if self.max_width:
+            # Too long: drop whole words from the end until it fits.
+            words = shown.split()
+            while len(words) > 1 and self.font.size(" ".join(words))[0] > self.max_width:
+                words.pop()
+            shown = " ".join(words)
+        self.image = self.font.render(shown or " ", True, colour)
         top, x = self.anchor
         rect = self.image.get_rect(top=top)
         if self.align == "center":

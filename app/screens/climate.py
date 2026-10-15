@@ -50,9 +50,7 @@ class ScreenClimate(PanelScreen):
     title = "CLIMATE CONTROL"
 
     def build(self):
-        self.sidebar("upper", colours.BEIGE, "STATUS", self.go_status)
-        self.sidebar("middle", colours.ORANGE, "CLIMATE")
-        self.sidebar("lower", colours.RED_BROWN, "SECURE", self.secure)
+        self.nav("SECURE", self.secure, colours.RED_BROWN)
 
         self.mode_keys = {}
         for i, mode in enumerate(MODES):
