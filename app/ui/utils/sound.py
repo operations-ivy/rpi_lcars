@@ -51,6 +51,11 @@ class Sound:
 
 
 def init(audio_params):
-    """Use this instead of ``pygame.mixer.init``"""
+    """Use this instead of ``pygame.mixer.init``. No sound device: silent,
+    rather than no panel."""
     if config.SOUND:
-        pygame.mixer.init(audio_params[0], audio_params[1], audio_params[2], audio_params[3])
+        try:
+            pygame.mixer.init(audio_params[0], audio_params[1], audio_params[2], audio_params[3])
+        except pygame.error as e:
+            print(f"sound off: {e}")
+            config.SOUND = False

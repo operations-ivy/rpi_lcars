@@ -1,0 +1,45 @@
+#!/bin/sh
+# Deploy the panel from GitHub. Run every 2 hours by lcars-deploy.timer, or
+# now with: systemctl --user start lcars-deploy.service
+#
+# Like brick-cicd-config's brick1982/deploy: if the branch this follows
+# (LCARS_DEPLOY_BRANCH in the env file, master by default) has moved, test
+# the new commit in a scratch worktree, switch to it only if the tests pass,
+# then restart the kiosk.
+set -eu
+repo=$(cd "$(dirname "$0")/.." && pwd)
+env_file=$HOME/.config/lcars/env
+state=${XDG_STATE_HOME:-$HOME/.local/state}/lcars-deploy
+mkdir -p "$state"
+
+branch=$(sed -n 's/^LCARS_DEPLOY_BRANCH=//p' "$env_file" 2>/dev/null | tail -n 1)
+branch=${branch:-master}
+
+cd "$repo"
+git fetch --quiet --prune origin
+if ! target=$(git rev-parse --verify --quiet "origin/$branch^{commit}"); then
+    echo "deploy: no branch '$branch' on GitHub; staying on $(git rev-parse --short HEAD)" >&2
+    exit 1
+fi
+current=$(git rev-parse HEAD)
+[ "$target" != "$current" ] || [ "${1:-}" = "--force" ] || exit 0
+[ "$target" != "$(cat "$state/failed" 2>/dev/null)" ] || exit 0
+
+scratch=$(mktemp -d)
+trap 'git worktree remove --force "$scratch/tree" 2>/dev/null || true; rm -rf "$scratch"' EXIT
+git worktree add --quiet --detach "$scratch/tree" "$target"
+if ! (cd "$scratch/tree" && python3 -m pytest -q -p no:cacheprovider) >"$scratch/log" 2>&1; then
+    cat "$scratch/log" >&2
+    echo "$target" >"$state/failed"
+    echo "deploy: tests failed on $branch @ $(git rev-parse --short "$target"); staying on $(git rev-parse --short "$current")" >&2
+    exit 1
+fi
+tail -n 1 "$scratch/log"
+
+git checkout --quiet --force --detach "$target"
+rm -f "$state/failed"
+echo "deploy: $branch @ $(git rev-parse --short "$target") (was $(git rev-parse --short "$current"))"
+if ! git diff --quiet "$current" "$target" -- deploy/; then
+    echo "deploy: deploy/ changed; run deploy/install.sh to apply it" >&2
+fi
+sudo systemctl restart lcars-kiosk.service
