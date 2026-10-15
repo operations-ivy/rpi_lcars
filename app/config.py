@@ -60,6 +60,15 @@ WEATHER_POLL_SECONDS = _float("LCARS_WEATHER_POLL_SECONDS", 300)
 # Weather older than this is shown as stale.
 WEATHER_STALE_SECONDS = _float("LCARS_WEATHER_STALE_SECONDS", 3600)
 
+# The room's own sensor (datasources/room.py): an SHT3x on the Pi's I2C bus.
+# Off unless LCARS_ROOM_SENSOR=true. The Pi warms the air near it: OFFSET (°F)
+# corrects that, measured once against a thermometer.
+ROOM_SENSOR = _bool("LCARS_ROOM_SENSOR", False)
+ROOM_NAME = _str("LCARS_ROOM_NAME", "ROOM").upper()
+ROOM_I2C_BUS = int(_float("LCARS_ROOM_I2C_BUS", 1))
+ROOM_I2C_ADDRESS = int(_str("LCARS_ROOM_I2C_ADDRESS", "0x44"), 0)
+ROOM_OFFSET = _float("LCARS_ROOM_OFFSET", 0)
+
 # The ecobee keeps heat and cool setpoints at least this far apart in auto.
 HEAT_COOL_GAP = _float("LCARS_HEAT_COOL_GAP", 5)
 # Taps on the arrows gather for this long before going to Home Assistant.

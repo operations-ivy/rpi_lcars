@@ -57,7 +57,7 @@ def thermostat(mode="heat", **attrs):
 
 
 class Rig:
-    def __init__(self, hour=12, states=None, web=None, colour_level=1.0):
+    def __init__(self, hour=12, states=None, web=None, colour_level=1.0, room=None):
         os.chdir(APP)
         self.clock = Clock()
         self.hour = hour
@@ -74,7 +74,8 @@ class Rig:
         self.web = web or FakeWeb()
         self.weather = make_weather(self.web, self.metrics)
         self.weather.poll()
-        self.panel = Panel(self.ha, self.lock, self.night, self.metrics, clock=self.clock, weather=self.weather)
+        self.panel = Panel(self.ha, self.lock, self.night, self.metrics, clock=self.clock, weather=self.weather,
+                           room=room)
         self.ui = UserInterface(ScreenStatus(self.panel), (800, 480), fps=1000, audio=False, panel=self.panel,
                                 colour_level=colour_level)
         self.tick()
@@ -378,3 +379,18 @@ def test_colour_level_darkens_the_frame():
     b = Rig().ui.screenSurface.get_at((60, 300))[:3]
     d = Rig(colour_level=0.8).ui.screenSurface.get_at((60, 300))[:3]
     assert all(abs(dv - round(bv * 204 / 255)) <= 1 for bv, dv in zip(b, d)), (b, d)
+
+
+def test_room_line():
+    from datasources.room import Room
+    from test_room import FakeSHT, reading
+    assert not [t for t in Rig().texts() if "ROOM" in t]           # no sensor: no line
+    dev = FakeSHT(reading(22.0, 45.0))
+    room = Room(device=dev)
+    room.poll()
+    rig = Rig(room=room)
+    assert "ROOM 71.6°F  45%" in rig.texts()
+    rig.shot("12-status-room")
+    room.updated -= 600                                           # stale: offline
+    rig.tick()
+    assert "ROOM SENSOR OFFLINE" in rig.texts()

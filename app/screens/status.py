@@ -20,6 +20,7 @@ class ScreenStatus(PanelScreen):
         self.add(LcarsLabel(colours.ORANGE, (TOP + 10, LEFT), "INTERIOR", 1.5))
         self.inside = self.add(LcarsLabel(colours.BEIGE, (TOP + 35, LEFT), "--", 6))
         self.inside_note = self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 160, LEFT), "", 1.2))
+        self.room = self.add(LcarsLabel(colours.BLUE, (TOP + 190, LEFT), "", 1.2))
 
         self.values = {}
         for i, row in enumerate(ROWS):
@@ -37,6 +38,11 @@ class ScreenStatus(PanelScreen):
         self.inside.set(fmt_temp(attrs.get("current_temperature"), unit))
         lo, hi = p.guardrails()
         self.inside_note.set(f"LIMITS {lo:.0f}-{hi:.0f}{unit}")
+        room = p.room_line()
+        if room is None:
+            self.room.set("")
+        else:
+            self.room.set(room[0], colours.BLUE if room[1] else colours.GREY_BLUE)
 
         mode = p.hvac_mode
         self.values["MODE"].set(MODE_LABELS.get(mode, (mode or "--").upper()))
