@@ -1,0 +1,173 @@
+"""Widgets for the Home Assistant panel. Labels are centred (the stock
+LcarsButton puts them bottom right), and arrows and code dots are drawn: the
+LCARS font has no ▲, ▼ or ●."""
+import pygame
+from pygame.font import Font
+from pygame.locals import MOUSEBUTTONDOWN, MOUSEBUTTONUP
+
+from ui import colours
+from ui.utils.sound import Sound
+from ui.widgets.sprite import LcarsWidget
+
+FONT = "assets/swiss911.ttf"
+_fonts = {}
+_beep = []
+
+
+def font(size=1.0):
+    px = int(19.0 * size)
+    if px not in _fonts:
+        _fonts[px] = Font(FONT, px)
+    return _fonts[px]
+
+
+def beep():
+    if not _beep:
+        _beep.append(Sound("assets/audio/panel/202.wav"))
+    _beep[0].play()
+
+
+class LcarsLabel(LcarsWidget):
+    """Text anchored at (top, x): its left edge, centre or right edge sits on x.
+    Re-renders only when the text or colour changes."""
+
+    def __init__(self, colour, pos, text="", size=1.0, align="left"):
+        self.colour, self.text, self.align = colour, None, align
+        self.font = font(size)
+        self.anchor = pos
+        self.image = self.font.render(" ", True, colour)
+        LcarsWidget.__init__(self, colour, pos, None)
+        self.set(text)
+
+    def set(self, text, colour=None):
+        text = str(text)
+        colour = colour or self.colour
+        if text == self.text and colour == getattr(self, "_drawn_colour", None):
+            return
+        self.text, self._drawn_colour = text, colour
+        self.image = self.font.render(text or " ", True, colour)
+        top, x = self.anchor
+        rect = self.image.get_rect(top=top)
+        if self.align == "center":
+            rect.centerx = x
+        elif self.align == "right":
+            rect.right = x
+        else:
+            rect.left = x
+        self.rect = rect
+
+    def handleEvent(self, event, clock):
+        return False
+
+
+class _Pressable(LcarsWidget):
+    """Lights white while pressed; the handler runs on a release inside it.
+    A disabled one doesn't light and doesn't run."""
+
+    def __init__(self, colour, pos, size, handler):
+        self.colour = colour
+        self.image = pygame.Surface(size).convert()
+        LcarsWidget.__init__(self, colour, pos, size, handler)
+        self.enabled = True
+        self.disabled_colour = colours.DISABLED
+        self.redraw()
+
+    def draw(self, surface, colour):
+        raise NotImplementedError
+
+    def redraw(self, pressed=False):
+        colour = colours.WHITE if pressed else (self.colour if self.enabled else self.disabled_colour)
+        self.image.fill(colours.BLACK)
+        self.draw(self.image, colour)
+
+    def set_colour(self, colour):
+        if colour != self.colour:
+            self.colour = colour
+            self.redraw()
+
+    def set_enabled(self, enabled):
+        if enabled != self.enabled:
+            self.enabled = enabled
+            self.redraw()
+
+    def handleEvent(self, event, clock):
+        if not self.visible:
+            self.focussed = False
+            return False
+        if event.type == MOUSEBUTTONDOWN and self.rect.collidepoint(event.pos):
+            self.focussed = True
+            if self.enabled:
+                self.redraw(pressed=True)
+                beep()
+        elif event.type == MOUSEBUTTONUP and self.focussed:
+            self.focussed = False
+            self.redraw()
+            if self.enabled and self.handler and self.rect.collidepoint(event.pos):
+                self.handler(self, event, clock)
+                return True
+        return False
+
+
+class LcarsKey(_Pressable):
+    """A flat block with its label centred, or bottom right like the stock
+    sidebar blocks (align="corner")."""
+
+    def __init__(self, colour, pos, size, text, handler=None, text_size=1.0, align="center"):
+        self.text, self.font, self.align = text, font(text_size), align
+        _Pressable.__init__(self, colour, pos, size, handler)
+
+    def draw(self, surface, colour):
+        surface.fill(colour)
+        label = self.font.render(self.text, True, colours.BLACK)
+        w, h = surface.get_size()
+        if self.align == "corner":
+            rect = label.get_rect(bottomright=(w - 8, h - 2))
+        else:
+            rect = label.get_rect(center=(w // 2, h // 2))
+        surface.blit(label, rect)
+
+    def set_text(self, text):
+        if text != self.text:
+            self.text = text
+            self.redraw()
+
+
+class LcarsArrow(_Pressable):
+    """A rounded block with a drawn triangle, pointing up or down."""
+
+    def __init__(self, colour, pos, size, up, handler=None):
+        self.up = up
+        _Pressable.__init__(self, colour, pos, size, handler)
+
+    def draw(self, surface, colour):
+        w, h = surface.get_size()
+        pygame.draw.rect(surface, colour, (0, 0, w, h), border_radius=h // 3)
+        cx, cy, half = w // 2, h // 2, min(w, h) // 3
+        tip, base = (cy - half, cy + half * 2 // 3) if self.up else (cy + half, cy - half * 2 // 3)
+        pygame.draw.polygon(surface, colours.BLACK, [(cx, tip), (cx - half, base), (cx + half, base)])
+
+
+class LcarsDots(LcarsWidget):
+    """How many digits are in: a row of drawn dots, one hollow slot per
+    digit still allowed."""
+
+    def __init__(self, colour, pos, slots=8, radius=10, gap=12):
+        self.colour, self.slots, self.radius, self.gap = colour, slots, radius, gap
+        self.image = pygame.Surface((slots * (2 * radius + gap), 2 * radius + 2)).convert()
+        LcarsWidget.__init__(self, colour, pos, None)
+        self.count = None
+        self.set(0)
+
+    def set(self, count, colour=None):
+        colour = colour or self.colour
+        if (count, colour) == (self.count, getattr(self, "_drawn", None)):
+            return
+        self.count, self._drawn = count, colour
+        self.image.fill(colours.BLACK)
+        r = self.radius
+        for i in range(self.slots):
+            centre = (r + i * (2 * r + self.gap), r + 1)
+            pygame.draw.circle(self.image, colour, centre, r, 0 if i < count else 2)
+
+    def handleEvent(self, event, clock):
+        return False

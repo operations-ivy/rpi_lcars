@@ -1,153 +1,104 @@
-import sys
-import pygame
-import config
-
+"""The code keypad. Its digits are shuffled on every visit, so watching where a
+hand goes teaches nothing; dots show how many digits are in, never which.
+Wrong codes lock it out for a while (panel.lock), and Home Assistant can
+hard-lock it."""
+from panel import lock as L
+from screens.base import LEFT, TOP, PanelScreen
 from ui import colours
 from ui.utils.sound import Sound
-from ui.widgets.background import LcarsBackgroundImage
-from ui.widgets.gifimage import LcarsGifImage
-from ui.widgets.lcars_widgets import LcarsText
-from ui.widgets.screen import LcarsScreen
-from ui.widgets.lcars_widgets import LcarsButton
+from ui.widgets.panel_widgets import LcarsDots, LcarsKey, LcarsLabel
 
-class ScreenAuthorize(LcarsScreen):
-
-    def setup(self, all_sprites):
-        all_sprites.add(LcarsBackgroundImage("assets/lcars_screen_2.png"),
-                        layer=0)
-
-        all_sprites.add(LcarsGifImage("assets/gadgets/stlogorotating.gif", (103, 369), 50), 
-                        layer=0)        
-
-        all_sprites.add(LcarsText(colours.ORANGE, (270, -1), "AUTHORIZATION REQUIRED", 2),
-                        layer=0)
-
-        all_sprites.add(LcarsText(colours.BLUE, (330, -1), "ONLY AUTHORIZED PERSONNEL MAY ACCESS THIS TERMINAL", 1.5),
-                        layer=1)
-
-        all_sprites.add(LcarsText(colours.BLUE, (360, -1), "TOUCH TERMINAL TO PROCEED", 1.5),
-                        layer=1)
-        
-        #all_sprites.add(LcarsText(colours.BLUE, (390, -1), "FAILED ATTEMPTS WILL BE REPORTED", 1.5),layer=1)
+MAX_DIGITS = 8
+KEY_SIZE = (100, 62)
+KEY_LEFT, KEY_GAP = 450, 8
 
 
-        all_sprites.add(LcarsButton(colours.GREY_BLUE, (320, 60), "1", self.num_1), layer=2)
-        all_sprites.add(LcarsButton(colours.GREY_BLUE, (370, 60), "2", self.num_2), layer=2)
-        all_sprites.add(LcarsButton(colours.GREY_BLUE, (320, 200), "3", self.num_3), layer=2)
-        all_sprites.add(LcarsButton(colours.GREY_BLUE, (370, 200), "4", self.num_4), layer=2)
-        all_sprites.add(LcarsButton(colours.GREY_BLUE, (320, 340), "5", self.num_5), layer=2)
-        all_sprites.add(LcarsButton(colours.GREY_BLUE, (370, 340), "6", self.num_6), layer=2)
-        all_sprites.add(LcarsButton(colours.GREY_BLUE, (320, 480), "7", self.num_7), layer=2)
-        all_sprites.add(LcarsButton(colours.GREY_BLUE, (370, 480), "8", self.num_8), layer=2)
-        all_sprites.add(LcarsButton(colours.GREY_BLUE, (320, 610), "9", self.num_9), layer=2)
-        all_sprites.add(LcarsButton(colours.GREY_BLUE, (370, 610), "0", self.num_0), layer=2)
+class ScreenAuthorize(PanelScreen):
+    name = "authorize"
+    title = "AUTHORIZATION REQUIRED"
 
-        if config.DEV_MODE:
-            all_sprites.add(LcarsButton(colours.GREY_BLUE, (0, 770), "X", self.exitHandler, (30, 30)), layer=2)
-        
-        self.layer1 = all_sprites.get_sprites_from_layer(1)
-        self.layer2 = all_sprites.get_sprites_from_layer(2)
+    def build(self):
+        self.sidebar("upper", colours.BEIGE, "STATUS", self.go_status)
+        self.sidebar("middle", colours.ORANGE, "CLIMATE")
+        self.sidebar("lower", colours.PEACH, "SECURED")
 
-        # sounds
-        Sound("assets/audio/panel/215.wav").play()
+        self.add(LcarsLabel(colours.ORANGE, (TOP + 10, LEFT), "ENTER CODE", 1.5))
+        self.dots = self.add(LcarsDots(colours.BEIGE, (TOP + 60, LEFT + 2), MAX_DIGITS))
+        self.message = self.add(LcarsLabel(colours.BLUE, (TOP + 110, LEFT), "", 1.3))
+        self.detail = self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 145, LEFT), "", 1.0))
+
+        digits = L.shuffled_digits()
+        labels = digits[:9] + ["CLEAR", digits[9], "ENTER"]
+        self.keys = []
+        for i, label in enumerate(labels):
+            row, col = divmod(i, 3)
+            pos = (TOP + 5 + row * (KEY_SIZE[1] + KEY_GAP), KEY_LEFT + col * (KEY_SIZE[0] + KEY_GAP))
+            if label == "CLEAR":
+                key = LcarsKey(colours.RED_BROWN, pos, KEY_SIZE, label, self.clear)
+            elif label == "ENTER":
+                key = LcarsKey(colours.GOLD, pos, KEY_SIZE, label, self.enter)
+            else:
+                key = LcarsKey(colours.GREY_BLUE, pos, KEY_SIZE, label, self.digit, text_size=1.8)
+            self.keys.append(self.add(key, layer=2))
+
+        self.code = ""
+        self.flash = ("", 0.0)  # a message shown until a time
+        Sound("assets/audio/enter_authorization_code.wav").play()
         self.sound_granted = Sound("assets/audio/accessing.wav")
-        self.sound_beep1 = Sound("assets/audio/panel/201.wav")
         self.sound_denied = Sound("assets/audio/access_denied.wav")
-        self.sound_deny1 = Sound("assets/audio/deny_1.wav")
-        self.sound_deny2 = Sound("assets/audio/deny_2.wav")
+        self.sound_deny = Sound("assets/audio/deny_2.wav")
 
-        self.reset()
+    def digit(self, key, event, clock):
+        if len(self.code) < MAX_DIGITS:
+            self.code += key.text
 
-    def reset(self):
-        # Variables for PIN code verification
-        self.correct = 0
-        self.pin_i = 0
-        self.granted = False
-        for sprite in self.layer1: sprite.visible = True
-        for sprite in self.layer2: sprite.visible = False
+    def clear(self, *_):
+        self.code = ""
 
-    def handleEvents(self, event, fpsClock):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            # Play sound
-            self.sound_beep1.play()
+    def enter(self, *_):
+        p = self.panel
+        result = p.lock.try_code(self.code)
+        self.code = ""
+        p.metrics.inc("lcars_unlock_attempts_total", result=result)
+        if result == L.GRANTED:
+            self.sound_granted.play()
+            self.go_climate()
+            return
+        self.sound_deny.play()
+        if result == L.DENIED:
+            self.sound_denied.play()
+            left = p.lock.misses_before_lockout - p.lock.misses
+            self.flash = (f"ACCESS DENIED - {left} ATTEMPT{'S' if left != 1 else ''} REMAIN", p.clock() + 4)
 
-        if event.type == pygame.MOUSEBUTTONUP:
-            if (not self.layer2[0].visible):
-                for sprite in self.layer1: sprite.visible = False
-                for sprite in self.layer2: sprite.visible = True
-                Sound("assets/audio/enter_authorization_code.wav").play()
-            elif (self.pin_i == len(str(config.PIN))):
-                # Ran out of button presses
-                if (self.correct == len(config.PIN)):
-                    self.sound_granted.play()
-                    from screens.main import ScreenMain
-                    self.loadScreen(ScreenMain())
-                else:
-                    self.sound_deny2.play()
-                    self.sound_denied.play()
-                    self.reset()
+    def refresh(self):
+        p = self.panel
+        lock = p.lock
+        if lock.can_change:  # opened from Home Assistant meanwhile
+            self.go_climate()
+            return
+        if lock.idle:
+            self.go_status()
+            return
 
-        return False
-
-    def num_1(self, item, event, clock):
-        if str(config.PIN)[self.pin_i] == '1':
-            self.correct += 1
-
-        self.pin_i += 1
-
-    def num_2(self, item, event, clock):
-        if str(config.PIN)[self.pin_i] == '2':
-            self.correct += 1
-
-        self.pin_i += 1
-
-    def num_3(self, item, event, clock):
-        if str(config.PIN)[self.pin_i] == '3':
-            self.correct += 1
-
-        self.pin_i += 1
-
-    def num_4(self, item, event, clock):
-        if str(config.PIN)[self.pin_i] == '4':
-            self.correct += 1
-
-        self.pin_i += 1
-
-    def num_5(self, item, event, clock):
-        if str(config.PIN)[self.pin_i] == '5':
-            self.correct += 1
-
-        self.pin_i += 1
-
-    def num_6(self, item, event, clock):
-        if str(config.PIN)[self.pin_i] == '6':
-            self.correct += 1
-
-        self.pin_i += 1
-
-    def num_7(self, item, event, clock):
-        if str(config.PIN)[self.pin_i] == '7':
-            self.correct += 1
-
-        self.pin_i += 1
-
-    def num_8(self, item, event, clock):
-        if str(config.PIN)[self.pin_i] == '8':
-            self.correct += 1
-
-        self.pin_i += 1
-
-    def num_9(self, item, event, clock):
-        if str(config.PIN)[self.pin_i] == '9':
-            self.correct += 1
-
-        self.pin_i += 1
-
-    def num_0(self, item, event, clock):
-        if str(config.PIN)[self.pin_i] == '0':
-            self.correct += 1
-
-        self.pin_i += 1
-
-    def exitHandler(self, item, event, clock):
-        sys.exit()
+        open_ = False
+        if lock.remote == L.HARD_LOCKED:
+            text, detail, colour = "LOCKED BY HOME ASSISTANT", "UNLOCK FROM HOME ASSISTANT", colours.RED
+        elif not lock.pin:
+            text, detail, colour = "NO CODE CONFIGURED", "UNLOCK FROM HOME ASSISTANT", colours.RED
+        elif lock.lockout_remaining() > 0:
+            secs = int(lock.lockout_remaining() + 0.999)
+            text, detail, colour = "SECURITY LOCKOUT", f"KEYPAD RETURNS IN {secs // 60}:{secs % 60:02d}", colours.RED
+        else:
+            open_ = True
+            message, until = self.flash
+            if message and p.clock() < until:
+                text, detail, colour = message, "", colours.RED
+            else:
+                text, detail, colour = "AUTHORIZED PERSONNEL ONLY", "", colours.BLUE
+        self.message.set(text, colour)
+        self.detail.set(detail)
+        for key in self.keys:
+            key.set_enabled(open_)
+        self.dots.set(len(self.code), colours.BEIGE if open_ else colours.DISABLED)
+        if not open_:
+            self.code = ""

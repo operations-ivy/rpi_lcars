@@ -4,7 +4,7 @@ version = "0.1.0"
 description = ""
 authors = ["Patrick White <whitep@vcu.edu>"]
 readme = "README.md"
-packages = [{include = "rpi_lcars"}]
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -13,6 +13,14 @@ pillow = "^11.2.1"
 psutil = "^7.0.0"
 
 
+[tool.poetry.group.dev.dependencies]
+pytest = "^9.1.1"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+# The app imports from its own folder (it runs from app/).
+pythonpath = ["app"]
+testpaths = ["tests"]

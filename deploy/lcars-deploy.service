@@ -1,0 +1,11 @@
+# systemd user unit: installed to ~/.config/systemd/user/ by deploy/install.sh.
+[Unit]
+Description=Deploy the LCARS panel from GitHub
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/rpi_lcars/deploy/deploy
+# How the run went, for Prometheus (brick-cicd-config's brick_status/jobs.py,
+# if that clone is here); '-': never fails the run.
+ExecStopPost=-/usr/bin/env PYTHONPATH=%h/brick-cicd-config/brick-status python3 -m brick_status.jobs lcars-deploy --git %h/rpi_lcars
