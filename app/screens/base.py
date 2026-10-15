@@ -48,6 +48,22 @@ class PanelScreen(LcarsScreen):
         pos, size = SIDEBAR[slot]
         return self.add(LcarsKey(colour, pos, size, text, handler, align="corner"), layer=2)
 
+    def nav(self, lower_text, lower_handler=None, lower_colour=colours.PEACH):
+        """The sidebar every screen has: STATUS, WEATHER, and the climate block
+        (MONITOR ONLY, without a handler, when read-only). The current screen's
+        block does nothing."""
+        here = self.name
+        self.sidebar("upper", colours.BEIGE, "STATUS", None if here == "status" else self.go_status)
+        self.sidebar("middle", colours.ORANGE, "WEATHER", None if here == "weather" else self.go_weather)
+        if self.panel.read_only:
+            return self.sidebar("lower", colours.GREY_BLUE, "MONITOR ONLY")
+        return self.sidebar("lower", lower_colour, lower_text, lower_handler)
+
+    def link_text(self):
+        """(ok, text) for the bottom right line."""
+        ok, text = self.panel.link()
+        return ok, f"HOME ASSISTANT LINK: {text}"
+
     def build(self):
         """Add this screen's widgets."""
 
@@ -57,8 +73,8 @@ class PanelScreen(LcarsScreen):
     def update(self, screenSurface, fpsClock):
         now = datetime.now()
         self.stardate.set(f"STARDATE {now:%Y.%j}  {now:%H:%M}")
-        ok, text = self.panel.link()
-        self.link.set(f"HOME ASSISTANT LINK: {text}", colours.BLUE if ok else colours.RED)
+        ok, text = self.link_text()
+        self.link.set(text, colours.BLUE if ok else colours.RED)
         if self.panel.night.dark and self.name != "status":
             self.go_status()
         else:
@@ -71,8 +87,17 @@ class PanelScreen(LcarsScreen):
         self.leave()
         self.loadScreen(ScreenStatus(self.panel))
 
+    def go_weather(self, *_):
+        from screens.weather import ScreenWeather
+        self.leave()
+        self.loadScreen(ScreenWeather(self.panel))
+
     def go_climate(self, *_):
-        """Climate control if the lock allows it, else the keypad."""
+        """Climate control if the lock allows it, else the keypad; nothing
+        when read-only."""
+        if self.panel.read_only:
+            self.go_status()
+            return
         self.leave()
         if self.panel.lock.can_change:
             from screens.climate import ScreenClimate

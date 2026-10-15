@@ -18,9 +18,7 @@ class ScreenAuthorize(PanelScreen):
     title = "AUTHORIZATION REQUIRED"
 
     def build(self):
-        self.sidebar("upper", colours.BEIGE, "STATUS", self.go_status)
-        self.sidebar("middle", colours.ORANGE, "CLIMATE")
-        self.sidebar("lower", colours.PEACH, "SECURED")
+        self.nav("SECURED")
 
         self.add(LcarsLabel(colours.ORANGE, (TOP + 10, LEFT), "ENTER CODE", 1.5))
         self.dots = self.add(LcarsDots(colours.BEIGE, (TOP + 60, LEFT + 2), MAX_DIGITS))

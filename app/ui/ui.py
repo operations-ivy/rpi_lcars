@@ -9,7 +9,8 @@ from ui.utils import sound
 class UserInterface:
     def __init__(self, screen, resolution=(800,480),
                  ui_placement_mode=False, fps=60, dev_mode=False, audio=True,
-                 audio_params=(22050, -8, 1, 1024), fullscreen=False, panel=None, dark_fps=4):
+                 audio_params=(22050, -8, 1, 1024), fullscreen=False, panel=None, dark_fps=4,
+                 colour_level=1.0):
         # init system
         pygame.display.init()
         pygame.font.init()
@@ -33,6 +34,9 @@ class UserInterface:
         self.panel = panel
         self._swallowing = False  # the rest of a touch that only woke the screen
         self._blank = False
+        # Every frame is multiplied by this before it's shown (config.COLOUR_LEVEL).
+        v = round(255 * colour_level)
+        self._dim = (v, v, v) if v < 255 else None
 
         # set up screen elements
         self.all_sprites = pygame.sprite.LayeredDirty()
@@ -63,6 +67,8 @@ class UserInterface:
         self.screen.pre_update(self.screenSurface, self.fpsClock)
         self.all_sprites.update(self.screenSurface)
         self.screen.update(self.screenSurface, self.fpsClock)
+        if self._dim:
+            self.screenSurface.fill(self._dim, special_flags=pygame.BLEND_RGB_MULT)
         pygame.display.update()
         if self.panel is not None:
             self.panel.metrics.set("lcars_frame_seconds", round(time.perf_counter() - started, 4))

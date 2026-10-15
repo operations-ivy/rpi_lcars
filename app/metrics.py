@@ -14,6 +14,12 @@ HELP = {
     "lcars_backlight_level": ("gauge", "Backlight, as a fraction of full (0 is dark)."),
     "lcars_can_change": ("gauge", "1 while climate control is open (unlocked)."),
     "lcars_frame_seconds": ("gauge", "Time the last frame took to draw."),
+    "lcars_weather_up": ("gauge", "1 while a weather source answers."),
+    "lcars_weather_source": ("gauge", "1 for the weather source the data shown came from, by source."),
+    "lcars_weather_requests_total": ("counter", "Requests to weather services, by source, kind and result."),
+    "lcars_weather_alerts": ("gauge", "Active weather alerts (-1: unknown, the National Weather Service didn't answer)."),
+    "lcars_weather_last_update_timestamp_seconds": ("gauge", "When the weather shown was fetched."),
+    "lcars_weather_temperature_fahrenheit": ("gauge", "Outside temperature, from the weather source."),
 }
 
 

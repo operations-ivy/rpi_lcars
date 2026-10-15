@@ -15,9 +15,7 @@ class ScreenStatus(PanelScreen):
     title = "ENVIRONMENTAL STATUS"
 
     def build(self):
-        self.sidebar("upper", colours.BEIGE, "STATUS")
-        self.sidebar("middle", colours.ORANGE, "CLIMATE", self.go_climate)
-        self.lock_block = self.sidebar("lower", colours.PEACH, "SECURED", self.go_climate)
+        self.nav("CLIMATE", self.go_climate)
 
         self.add(LcarsLabel(colours.ORANGE, (TOP + 10, LEFT), "INTERIOR", 1.5))
         self.inside = self.add(LcarsLabel(colours.BEIGE, (TOP + 35, LEFT), "--", 6))
@@ -27,10 +25,11 @@ class ScreenStatus(PanelScreen):
         for i, row in enumerate(ROWS):
             top = TOP + 10 + i * 36
             self.add(LcarsLabel(colours.PURPLE, (top, COL_LABEL), row, 1.2))
-            self.values[row] = self.add(LcarsLabel(colours.BLUE, (top, COL_VALUE), "--", 1.2))
+            self.values[row] = self.add(LcarsLabel(colours.BLUE, (top, COL_VALUE), "--", 1.2,
+                                                   max_width=RIGHT - COL_VALUE))
 
-        self.lock_line = self.add(LcarsLabel(colours.ORANGE, (TOP + 245, LEFT), "", 1.4))
-        self.hint = self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 280, LEFT), "", 1.0))
+        self.lock_line = self.add(LcarsLabel(colours.ORANGE, (TOP + 245, LEFT), "", 1.4, max_width=RIGHT - LEFT))
+        self.hint = self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 280, LEFT), "", 1.0, max_width=RIGHT - LEFT))
 
     def refresh(self):
         p = self.panel
@@ -48,11 +47,23 @@ class ScreenStatus(PanelScreen):
         self.values["TARGET"].set(" - ".join(fmt_temp(attrs.get(k), unit) for k in keys) or "--")
         humidity = attrs.get("current_humidity")
         self.values["HUMIDITY"].set("--" if humidity is None else f"{humidity:.0f}%")
-        temp, condition = p.weather()
-        self.values["EXTERIOR"].set(fmt_temp(temp, unit))
-        self.values["CONDITIONS"].set(condition or "--")
+        temp, condition = p.outside()
+        stale = p.weather_stale()
+        self.values["EXTERIOR"].set(fmt_temp(temp, "°F"), colours.GREY_BLUE if stale else colours.BLUE)
+        self.values["CONDITIONS"].set(condition or "--", colours.GREY_BLUE if stale else colours.BLUE)
 
+        alert, kind = p.alert_line()
+        alert_colour = {"alert": colours.RED, "ok": colours.GREY_BLUE, "unknown": colours.ORANGE}[kind]
         lock = p.lock
+        if p.read_only:
+            self.lock_line.set(alert, alert_colour if kind == "alert" else colours.ORANGE)
+            self.hint.set("THERMOSTAT MONITOR ONLY - CONTROLS DISABLED")
+            return
+        if kind == "alert":
+            # An alert outranks the lock line; the block still shows the lock.
+            self.lock_line.set(alert, colours.RED)
+            self.hint.set("TOUCH WEATHER FOR DETAILS")
+            return
         if lock.remote == L.HARD_LOCKED:
             line, hint, colour, block = ("CONTROLS LOCKED BY HOME ASSISTANT",
                                          "UNLOCK FROM HOME ASSISTANT", colours.RED, "LOCKED")
@@ -64,4 +75,3 @@ class ScreenStatus(PanelScreen):
                                          colours.ORANGE, "SECURED")
         self.lock_line.set(line, colour)
         self.hint.set(hint)
-        self.lock_block.set_text(block)

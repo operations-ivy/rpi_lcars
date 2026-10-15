@@ -18,6 +18,7 @@ from panel.night import Night
 from screens.status import ScreenStatus
 from ui.ui import UserInterface
 from ui.widgets.panel_widgets import LcarsArrow, LcarsKey, LcarsLabel
+from test_weather import FakeWeb, make as make_weather
 
 APP = Path(__file__).resolve().parent.parent / "app"
 PIN = "2468"
@@ -56,13 +57,12 @@ def thermostat(mode="heat", **attrs):
 
 
 class Rig:
-    def __init__(self, hour=12, states=None):
+    def __init__(self, hour=12, states=None, web=None, colour_level=1.0):
         os.chdir(APP)
         self.clock = Clock()
         self.hour = hour
         self.ha = FakeHA(states if states is not None else {
             config.THERMOSTAT: thermostat(),
-            config.WEATHER: {"state": "partlycloudy", "attributes": {"temperature": 54}},
             config.LOCK_ENTITY: {"state": "normal", "attributes": {}},
             config.SETPOINT_MIN_ENTITY: {"state": "64.0", "attributes": {}},
             config.SETPOINT_MAX_ENTITY: {"state": "76.0", "attributes": {}},
@@ -71,8 +71,12 @@ class Rig:
         self.lock = PanelLock(PIN, idle_seconds=120, clock=self.clock)
         self.night = Night("21:00-07:00", 0.08, 1.0, 60,
                            now=lambda: datetime(2026, 10, 15, self.hour, 0), clock=self.clock)
-        self.panel = Panel(self.ha, self.lock, self.night, self.metrics, clock=self.clock)
-        self.ui = UserInterface(ScreenStatus(self.panel), (800, 480), fps=1000, audio=False, panel=self.panel)
+        self.web = web or FakeWeb()
+        self.weather = make_weather(self.web, self.metrics)
+        self.weather.poll()
+        self.panel = Panel(self.ha, self.lock, self.night, self.metrics, clock=self.clock, weather=self.weather)
+        self.ui = UserInterface(ScreenStatus(self.panel), (800, 480), fps=1000, audio=False, panel=self.panel,
+                                colour_level=colour_level)
         self.tick()
 
     def tick(self, n=2):
@@ -113,18 +117,40 @@ class Rig:
             pygame.image.save(self.ui.screenSurface, str(Path(out) / f"{name}.png"))
 
 
+def quiet_web():
+    """No weather alerts: most tests are about the lock, and an alert outranks it."""
+    web = FakeWeb()
+    web.bodies["https://api.weather.gov/alerts/active?point=39.7456,-97.0892"] = {"features": []}
+    return web
+
+
 @pytest.fixture
 def rig():
+    return Rig(web=quiet_web())
+
+
+@pytest.fixture
+def alert_rig():
     return Rig()
 
 
-def test_status_shows_the_thermostat_and_weather(rig):
+def test_status_shows_the_thermostat_and_weather(alert_rig):
+    rig = alert_rig
     assert rig.screen == "status"
     texts = rig.texts()
-    for expected in ("68.5°F", "HEAT", "HEATING", "70°F", "41%", "54°F", "PARTLY CLOUDY",
-                     "CONTROLS SECURED", "HOME ASSISTANT LINK: NOMINAL", "LIMITS 64-76°F"):
+    for expected in ("68.5°F", "HEAT", "HEATING", "70°F", "41%", "73.4°F", "CLOUDY",
+                     "WEATHER ALERT: FLOOD WATCH", "HOME ASSISTANT LINK: NOMINAL", "LIMITS 64-76°F"):
         assert expected in texts, expected
     rig.shot("1-status")
+
+
+def test_no_alert_shows_the_lock(rig):
+    assert "CONTROLS SECURED" in rig.texts()
+
+
+def test_an_alert_outranks_the_lock_line(alert_rig):
+    assert "WEATHER ALERT: FLOOD WATCH" in alert_rig.texts()
+    assert "TOUCH WEATHER FOR DETAILS" in alert_rig.texts()
 
 
 def test_keypad_is_shuffled_and_the_code_opens_climate(rig):
@@ -268,7 +294,7 @@ def test_home_assistant_unlock_needs_no_code(rig):
 
 
 def test_night_first_tap_only_wakes():
-    rig = Rig(hour=23)
+    rig = Rig(hour=23, web=quiet_web())
     assert rig.night.dark
     climate = rig.key("CLIMATE")
     rig.tap(climate)
@@ -287,9 +313,68 @@ def test_night_first_tap_only_wakes():
 
 
 def test_no_home_assistant_yet():
-    rig = Rig(states={})
+    rig = Rig(states={}, web=quiet_web())
     rig.ha.connected, rig.ha.error = False, "NO SIGNAL"
     rig.tick()
     assert "HOME ASSISTANT LINK: NO SIGNAL" in rig.texts()
     assert "--" in rig.texts()
     rig.shot("7-status-no-signal")
+
+
+def test_weather_screen():
+    rig = Rig()
+    rig.tap(rig.key("WEATHER"))
+    assert rig.screen == "weather"
+    texts = rig.texts()
+    for expected in ("73.4°F", "CLOUDY", "HUMIDITY 78%   WIND ENE 9 MPH", "FLOOD WATCH UNTIL 10 PM",
+                     "TODAY", "72°F", "CHANCE RAIN SHOWERS", "27% RAIN", "TONIGHT", "WEATHER VIA NWS - JUST NOW"):
+        assert expected in texts, expected
+    rig.shot("8-weather")
+    rig.tap(rig.key("STATUS"))
+    assert rig.screen == "status"
+
+
+def test_weather_on_a_backup_says_alerts_are_unknown():
+    web = FakeWeb()
+    web.down.add("api.weather.gov")
+    rig = Rig(web=web)
+    rig.tap(rig.key("WEATHER"))
+    texts = rig.texts()
+    assert "UNAVAILABLE" in texts and "NATIONAL WEATHER SERVICE OFFLINE" in texts
+    assert "WEATHER VIA OPEN-METEO - JUST NOW" in texts
+    rig.shot("9-weather-backup")
+
+
+def test_all_weather_down_is_graceful():
+    web = FakeWeb()
+    web.down |= {"api.weather.gov", "api.open-meteo.com", "api.met.no"}
+    rig = Rig(web=web)
+    assert "WEATHER ALERTS UNAVAILABLE" in rig.texts() or "CONTROLS SECURED" in rig.texts()
+    rig.tap(rig.key("WEATHER"))
+    texts = rig.texts()
+    assert "WEATHER UNAVAILABLE" in texts and "WEATHER: ALL SOURCES OFFLINE" in texts
+    rig.shot("10-weather-offline")
+
+
+def test_read_only_never_opens_climate(monkeypatch):
+    monkeypatch.setattr(config, "READ_ONLY", True)
+    rig = Rig()
+    rig.ha.set(config.LOCK_ENTITY, "unlocked")  # even Home Assistant's override
+    rig.tick()
+    texts = rig.texts()
+    assert "THERMOSTAT MONITOR ONLY - CONTROLS DISABLED" in texts
+    assert "WEATHER ALERT: FLOOD WATCH" in texts
+    monitor = rig.key("MONITOR ONLY")
+    rig.tap(monitor)
+    assert rig.screen == "status"
+    assert not [k for k in rig.sprites(LcarsKey) if k.text == "CLIMATE"]
+    assert rig.panel.call("climate", "set_temperature", "set_temperature", temperature=71) is False
+    assert rig.ha.calls == []
+    rig.shot("11-status-read-only")
+
+
+def test_colour_level_darkens_the_frame():
+    # pygame has one display surface: read each rig's frame before the next.
+    b = Rig().ui.screenSurface.get_at((60, 300))[:3]
+    d = Rig(colour_level=0.8).ui.screenSurface.get_at((60, 300))[:3]
+    assert all(abs(dv - round(bv * 204 / 255)) <= 1 for bv, dv in zip(b, d)), (b, d)
