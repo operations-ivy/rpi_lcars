@@ -10,7 +10,7 @@ HELP = {
     "lcars_relocks_total": ("counter", "Times the panel locked itself, by reason (idle, dark, hard_locked)."),
     "lcars_commands_total": ("counter", "Changes sent from the climate screen, by action."),
     "lcars_taps_total": ("counter", "Touches, by whether they only woke the screen."),
-    "lcars_screen": ("gauge", "1 for the screen being shown, by name."),
+    "lcars_screen": ("gauge", "1 for the screen being shown, by screen."),
     "lcars_backlight_level": ("gauge", "Backlight, as a fraction of full (0 is dark)."),
     "lcars_can_change": ("gauge", "1 while climate control is open (unlocked)."),
     "lcars_frame_seconds": ("gauge", "Time the last frame took to draw."),

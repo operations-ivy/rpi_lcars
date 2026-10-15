@@ -43,7 +43,9 @@ class Backlight:
             self.path.write_text(str(level))
             self.level = level
         except OSError as e:
-            log.warning("backlight %s not writable: %s", self.path, e)
+            # Once is enough: stop trying rather than warn every frame.
+            log.warning("backlight %s not writable, leaving it alone: %s", self.path, e)
+            self.path = None
 
 
 class Night:

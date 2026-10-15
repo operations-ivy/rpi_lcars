@@ -4,6 +4,9 @@ from pygame.mixer import Sound as OldSound
 
 import config
 
+# Silences every Sound while set (the panel sets it overnight).
+MUTED = False
+
 # Cannot use inheritance or decorator because pygame.mixer.Sound is a C-extension.
 class Sound:
     """Class wrapping ``pygame.mixer.Sound`` with the ability to enable/disable sound globally
@@ -15,7 +18,7 @@ class Sound:
             self.sound = OldSound(source)
 
     def play(self, loops=0, maxtime=0, fade_ms=0):
-        if config.SOUND:
+        if config.SOUND and not MUTED:
             self.sound.play(loops, maxtime, fade_ms)
 
     def stop(self):

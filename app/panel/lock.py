@@ -45,9 +45,15 @@ class PanelLock:
             return False
         if self.remote == UNLOCKED:
             return True
-        return self._unlocked and not self._idle()
+        return self._unlocked and not self.idle
 
-    def _idle(self):
+    @property
+    def unlocked(self):
+        """Opened with the code (Home Assistant's override aside)."""
+        return self._unlocked
+
+    @property
+    def idle(self):
         return self.clock() - self._last_touch >= self.idle_seconds
 
     def lockout_remaining(self):
@@ -79,7 +85,7 @@ class PanelLock:
 
     def relock_if_idle(self):
         """Lock after the quiet spell; True when that just happened."""
-        if self._unlocked and self._idle():
+        if self._unlocked and self.idle:
             self._unlocked = False
             return True
         return False
