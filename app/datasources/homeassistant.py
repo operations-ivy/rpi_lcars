@@ -29,6 +29,8 @@ class HomeAssistant(threading.Thread):
         self.error = "" if token else "NO TOKEN"
         self.unit = "°F"
         self.last_call = None  # (time.time(), service) of the last call that worked
+        if metrics:
+            metrics.set("lcars_ha_up", 0)  # down until a poll answers, or forever without a token
 
     # The screens' side.
 

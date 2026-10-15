@@ -91,3 +91,10 @@ def test_no_token_never_talks():
     ha.start()
     ha.join(5)
     assert fake.headers == []
+
+
+def test_link_is_down_until_a_poll_answers():
+    m = Metrics()
+    HomeAssistant("http://ha", "", ["climate.thermostat"], metrics=m, opener=FakeHA({}))
+    assert m.get("lcars_ha_up") == 0
+    assert "lcars_ha_up 0" in m.render()

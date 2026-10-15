@@ -26,3 +26,11 @@ def test_serves_metrics():
         assert "lcars_ha_up 0" in body
     finally:
         server.shutdown()
+
+
+def test_known_counters_start_at_zero():
+    text = Metrics().render()
+    assert 'lcars_taps_total{woke="true"} 0' in text
+    assert 'lcars_unlock_attempts_total{result="denied"} 0' in text
+    assert 'lcars_relocks_total{reason="button"} 0' in text
+    assert 'lcars_commands_total{action="set_hvac_mode"} 0' in text
