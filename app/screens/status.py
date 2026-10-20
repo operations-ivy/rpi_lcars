@@ -19,7 +19,7 @@ class ScreenStatus(PanelScreen):
     title = "STATUS REPORT"
 
     def build(self):
-        self.nav("CLIMATE", self.go_climate)
+        self.nav()
 
         self.heading = self.add(LcarsLabel(colours.ORANGE, (TOP + 10, LEFT), "", 1.5))
         self.big = self.add(LcarsLabel(colours.BEIGE, (TOP + 35, LEFT), "--", 6))

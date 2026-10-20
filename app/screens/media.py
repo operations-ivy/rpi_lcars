@@ -16,7 +16,7 @@ class ScreenMedia(PanelScreen):
     title = "RECREATION DECK"
 
     def build(self):
-        self.nav("CLIMATE", self.go_climate)
+        self.nav()
         self.picture = self.add(LcarsPicture((TOP + 10, LEFT), (PICTURE, PICTURE)))
         self.add(LcarsLabel(colours.ORANGE, (TOP + 10, TEXT_X), "PLAYSTATION 5", 1.5))
         self.state = self.add(LcarsLabel(colours.BEIGE, (TOP + 45, TEXT_X), "--", 3))

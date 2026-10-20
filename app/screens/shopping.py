@@ -15,7 +15,7 @@ class ScreenShopping(PanelScreen):
     title = "SUPPLY MANIFEST"
 
     def build(self):
-        self.nav("CLIMATE", self.go_climate)
+        self.nav()
         self.heading = self.add(LcarsLabel(colours.ORANGE, (TOP + 10, LEFT), "", 1.5))
         self.more = self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 15, RIGHT), "", 1.1, "right"))
         self.rows = []

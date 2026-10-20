@@ -1,6 +1,7 @@
 """The frame every panel screen shares: the LCARS background, a clock in the
-top corner, a title in the top bar, the sidebar's blocks, the stardate and the
-Home Assistant link along the bottom."""
+top corner, a title in the top bar, STATUS and THERMOSTAT on the top bar's
+blocks, the other screens down the sidebar, the stardate and the Home
+Assistant link along the bottom."""
 from datetime import datetime
 
 from datasources.network import get_ip_addresses
@@ -12,16 +13,22 @@ from ui.widgets.screen import LcarsScreen
 # The frame's open area (x from 125 to 785, y from 100 to 440).
 LEFT, RIGHT, TOP, BOTTOM = 140, 775, 105, 435
 
-# Sidebar blocks, (top, left) and size, matching lcars_screen_1.png.
+# Blocks, (top, left) and size, matching lcars_screen_1.png. The top bar's two
+# long blocks (both of its rows) hold STATUS and THERMOSTAT.
+TOP_BAR = {
+    "status": ((56, 412), (149, 41)),
+    "thermostat": ((56, 563), (179, 41)),
+}
 SIDEBAR = {
     "upper": ((145, 16), (98, 62)),
     "middle": ((211, 16), (98, 34)),
     "lower": ((249, 16), (98, 147)),
 }
-# The lower block is cut into a block per extra screen (SHOPPING, PS5), each
-# this tall, with the background's 4 px black gap between; the climate block
-# keeps what's left.
-EXTRA_HEIGHT, GAP = 45, 4
+# The sidebar's blocks go to the screens in order; the lower block is cut into
+# as many as are left, with the background's 4 px black gap between.
+GAP = 4
+CONDITION = {"RED": ("RED ALERT", colours.RED), "YELLOW": ("YELLOW ALERT", colours.GOLD),
+             "GREEN": ("ALERTS", colours.BLUE), "UNKNOWN": ("ALERTS", colours.GREY_BLUE)}
 
 
 class PanelScreen(LcarsScreen):
@@ -52,33 +59,60 @@ class PanelScreen(LcarsScreen):
         pos, size = SIDEBAR[slot] if isinstance(slot, str) else slot
         return self.add(LcarsKey(colour, pos, size, text, handler, align="corner"), layer=2)
 
-    def extras(self):
-        """The extra screens' blocks: (name, colour, text, handler)."""
+    def screens(self, action=None):
+        """The sidebar's blocks, in order: (name, colour, text, handler). The
+        last is the screen's own action (climate's SECURE), or CLIMATE
+        unless the panel is read-only."""
         cfg = self.panel.cfg
         out = []
+        if cfg.PROMETHEUS_URL or cfg.OVERWATCH_URL:
+            out.append(("alerts", colours.BLUE, "ALERTS", self.go_alerts))
+        if cfg.WIGLE_URL:
+            out.append(("wigle", colours.GOLD, "WIGLE", self.go_wigle))
         if cfg.SHOPPING_LIST:
             out.append(("shopping", colours.PURPLE, "SHOPPING", self.go_shopping))
         if cfg.MEDIA_PLAYER:
             out.append(("media", colours.RED_BROWN, "PS5", self.go_media))
+        if action:
+            text, handler, colour = action
+            out.append(("action", colour, text, handler))
+        elif not self.panel.read_only:
+            out.append(("climate", colours.PEACH, "CLIMATE", self.go_climate))
         return out
 
-    def nav(self, lower_text, lower_handler=None, lower_colour=colours.PEACH):
-        """The sidebar every screen has: STATUS, THERMOSTAT (and the weather),
-        a block per extra screen, and the climate block (MONITOR ONLY, without
-        a handler, when read-only). The current screen's block does nothing."""
+    def nav(self, action=None):
+        """STATUS and THERMOSTAT on the top bar, the other screens down the
+        sidebar (screens()). The current screen's block does nothing. The
+        ALERTS block names the alert condition in its colour."""
         here = self.name
-        self.sidebar("upper", colours.BEIGE, "STATUS", None if here == "status" else self.go_status)
-        self.sidebar("middle", colours.ORANGE, "THERMOSTAT", None if here == "thermostat" else self.go_thermostat)
-        (top, left), (width, height) = SIDEBAR["lower"]
-        for name, colour, text, handler in self.extras():
-            self.sidebar(((top, left), (width, EXTRA_HEIGHT)), colour, text, None if here == name else handler)
-            self.add(LcarsBlock(colours.BLACK, (top + EXTRA_HEIGHT, left), (width, GAP)), layer=2)
-            top += EXTRA_HEIGHT + GAP
-            height -= EXTRA_HEIGHT + GAP
-        lower = ((top, left), (width, height))
-        if self.panel.read_only:
-            return self.sidebar(lower, colours.GREY_BLUE, "MONITOR ONLY")
-        return self.sidebar(lower, lower_colour, lower_text, lower_handler)
+        self.nav_keys = {}
+        for name, colour, text, handler in (("status", colours.BEIGE, "STATUS", self.go_status),
+                                            ("thermostat", colours.ORANGE, "THERMOSTAT", self.go_thermostat)):
+            pos, size = TOP_BAR[name]
+            self.nav_keys[name] = self.add(LcarsKey(colour, pos, size, text, None if here == name else handler,
+                                                align="corner"), layer=2)
+        blocks = self.screens(action)
+        slots = [SIDEBAR["upper"], SIDEBAR["middle"]][:len(blocks)]
+        rest = len(blocks) - len(slots)
+        if rest:
+            (top, left), (width, height) = SIDEBAR["lower"]
+            each = (height - GAP * (rest - 1)) // rest
+            for i in range(rest):
+                h = each if i < rest - 1 else height - (each + GAP) * (rest - 1)
+                slots.append(((top, left), (width, h)))
+                if i < rest - 1:
+                    self.add(LcarsBlock(colours.BLACK, (top + h, left), (width, GAP)), layer=2)
+                top += h + GAP
+        for slot, (name, colour, text, handler) in zip(slots, blocks):
+            self.nav_keys[name] = self.sidebar(slot, colour, text, None if here == name else handler)
+        return self.nav_keys.get("action")
+
+    def show_condition(self):
+        key = self.nav_keys.get("alerts") if hasattr(self, "nav_keys") else None
+        if key is not None:
+            text, colour = CONDITION[self.panel.alerts()["condition"]]
+            key.set_text(text)
+            key.set_colour(colour)
 
     def link_text(self):
         """(ok, text) for the bottom right line."""
@@ -97,6 +131,7 @@ class PanelScreen(LcarsScreen):
         self.stardate.set(f"STARDATE {now:%Y.%j}")
         ok, text = self.link_text()
         self.link.set(text, colours.BLUE if ok else colours.RED)
+        self.show_condition()
         if self.panel.night.dark and self.name != "status":
             self.go_status()
         else:
@@ -123,6 +158,16 @@ class PanelScreen(LcarsScreen):
         from screens.media import ScreenMedia
         self.leave()
         self.loadScreen(ScreenMedia(self.panel))
+
+    def go_alerts(self, *_):
+        from screens.alerts import ScreenAlerts
+        self.leave()
+        self.loadScreen(ScreenAlerts(self.panel))
+
+    def go_wigle(self, *_):
+        from screens.wigle import ScreenWigle
+        self.leave()
+        self.loadScreen(ScreenWigle(self.panel))
 
     def go_climate(self, *_):
         """Climate control if the lock allows it, else the keypad; nothing
