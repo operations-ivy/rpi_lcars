@@ -34,3 +34,15 @@ def test_known_counters_start_at_zero():
     assert 'lcars_unlock_attempts_total{result="denied"} 0' in text
     assert 'lcars_relocks_total{reason="button"} 0' in text
     assert 'lcars_commands_total{action="set_hvac_mode"} 0' in text
+
+
+def test_serves_json_documents():
+    import json
+    server = Metrics().serve(0, host="127.0.0.1", documents={"/room.json": lambda: {"up": True}})
+    try:
+        port = server.server_address[1]
+        r = urllib.request.urlopen(f"http://127.0.0.1:{port}/room.json")
+        assert r.headers["Content-Type"] == "application/json"
+        assert json.loads(r.read()) == {"up": True}
+    finally:
+        server.shutdown()

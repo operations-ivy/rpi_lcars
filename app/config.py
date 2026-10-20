@@ -31,7 +31,8 @@ SOUND = _bool("LCARS_SOUND", True)
 # a fifth darker). Separate from the backlight, which also darkens black.
 COLOUR_LEVEL = min(1.0, max(0.2, _float("LCARS_COLOUR_LEVEL", 1.0)))
 # Show the thermostat, never change it: no climate control, no keypad, and
-# no service calls go to Home Assistant.
+# no thermostat service calls go to Home Assistant. (The shopping list can
+# still be ticked off: that's not the thermostat.)
 READ_ONLY = _bool("LCARS_READ_ONLY", False)
 
 # The code that opens climate control. Empty: the panel can't be opened with a
@@ -52,6 +53,17 @@ THERMOSTAT = _str("LCARS_THERMOSTAT", "climate.thermostat")
 LOCK_ENTITY = "input_select.lcars_panel_lock"
 SETPOINT_MIN_ENTITY = "input_number.thermostat_setpoint_min"
 SETPOINT_MAX_ENTITY = "input_number.thermostat_setpoint_max"
+# Sunrise and sunset (the STATUS screen, and "sunset"/"sunrise" in NIGHT).
+SUN_ENTITY = "sun.sun"
+# The internet: a connectivity binary_sensor (empty: no NETWORK row).
+WAN_ENTITY = _str("LCARS_WAN_ENTITY", "binary_sensor.verizon_router_wan_status")
+# The SHOPPING screen's to-do list (empty: no SHOPPING button). Tapping an
+# item ticks it off.
+SHOPPING_LIST = _str("LCARS_SHOPPING_LIST", "todo.shopping_list")
+# The PS5 screen (empty: no PS5 button): the console, and an image entity with
+# the game last played (the PlayStation Network integration's "Now playing").
+MEDIA_PLAYER = _str("LCARS_MEDIA_PLAYER", "media_player.playstation_5")
+MEDIA_IMAGE = _str("LCARS_MEDIA_IMAGE", "image.living_room_ps5_pw_now_playing")
 # Weather for this point ("lat,lon"; empty: no weather), from the National
 # Weather Service, then Open-Meteo, then MET Norway (datasources/weather.py).
 # Kept in the env file, not here: it's where the panel is.
@@ -74,8 +86,9 @@ HEAT_COOL_GAP = _float("LCARS_HEAT_COOL_GAP", 5)
 # Taps on the arrows gather for this long before going to Home Assistant.
 SEND_AFTER_SECONDS = _float("LCARS_SEND_AFTER_SECONDS", 1.5)
 
-# Night ("HH:MM-HH:MM", may wrap past midnight; empty for never): the panel is
-# dark and silent, and a tap wakes it, dimmed, for WAKE_SECONDS.
+# Night ("HH:MM-HH:MM", may wrap past midnight; either end may be "sunset" or
+# "sunrise"; empty for never): the panel is dark and silent, and a tap wakes
+# it, dimmed, for WAKE_SECONDS.
 NIGHT = _str("LCARS_NIGHT", "21:00-07:00")
 NIGHT_LEVEL = _float("LCARS_NIGHT_LEVEL", 0.08)
 DAY_LEVEL = _float("LCARS_DAY_LEVEL", 1.0)

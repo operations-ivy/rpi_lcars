@@ -93,6 +93,14 @@ class Room(threading.Thread):
     def fresh(self, max_age=300):
         return self.updated is not None and time.time() - self.updated < max_age
 
+    def document(self):
+        """The latest reading for Home Assistant (/room.json): null and
+        "up": false while the sensor is offline."""
+        up = self.fresh()
+        return {"up": up,
+                "temperature_f": round(self.temperature, 1) if up else None,
+                "humidity": round(self.humidity, 1) if up else None}
+
     def run(self):
         while not self._stop.is_set():
             self.poll()

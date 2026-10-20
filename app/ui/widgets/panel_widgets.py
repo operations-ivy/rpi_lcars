@@ -1,6 +1,8 @@
 """Widgets for the Home Assistant panel. Labels are centred (the stock
 LcarsButton puts them bottom right), and arrows and code dots are drawn: the
 LCARS font has no ▲, ▼ or ●."""
+import io
+
 import pygame
 from pygame.font import Font
 from pygame.locals import MOUSEBUTTONDOWN, MOUSEBUTTONUP
@@ -125,10 +127,21 @@ class LcarsKey(_Pressable):
 
     def draw(self, surface, colour):
         surface.fill(colour)
-        label = self.font.render(self.text, True, colours.BLACK)
         w, h = surface.get_size()
+        text = self.text
+        if self.align == "left":
+            # A rounded bar with the text from its left end, cut to fit.
+            surface.fill(colours.BLACK)
+            pygame.draw.rect(surface, colour, (0, 0, w, h), border_radius=h // 2)
+            if self.font.size(text)[0] > w - h:
+                while len(text) > 1 and self.font.size(text + "...")[0] > w - h:
+                    text = text[:-1]
+                text = text.rstrip() + "..."
+        label = self.font.render(text, True, colours.BLACK)
         if self.align == "corner":
             rect = label.get_rect(bottomright=(w - 8, h - 2))
+        elif self.align == "left":
+            rect = label.get_rect(midleft=(h // 2, h // 2))
         else:
             rect = label.get_rect(center=(w // 2, h // 2))
         surface.blit(label, rect)
@@ -137,6 +150,48 @@ class LcarsKey(_Pressable):
         if text != self.text:
             self.text = text
             self.redraw()
+
+
+class LcarsBlock(LcarsWidget):
+    """A plain rectangle: the gaps cut into the background's sidebar."""
+
+    def __init__(self, colour, pos, size):
+        self.image = None
+        LcarsWidget.__init__(self, colour, pos, size)
+
+    def handleEvent(self, event, clock):
+        return False
+
+
+class LcarsPicture(LcarsWidget):
+    """Image bytes (JPEG or PNG) scaled to fit a box, centred in it; empty
+    when there are none or they won't decode."""
+
+    def __init__(self, pos, size):
+        self.box = size
+        self.image = pygame.Surface(size).convert()
+        self.image.fill(colours.BLACK)
+        LcarsWidget.__init__(self, colours.BLACK, pos, None)
+        self.data = None
+
+    def set(self, data):
+        if data is self.data:
+            return
+        self.data = data
+        self.image.fill(colours.BLACK)
+        if not data:
+            return
+        try:
+            picture = pygame.image.load(io.BytesIO(data))
+        except pygame.error:
+            return
+        w, h = picture.get_size()
+        scale = min(self.box[0] / w, self.box[1] / h)
+        picture = pygame.transform.smoothscale(picture.convert(), (max(1, int(w * scale)), max(1, int(h * scale))))
+        self.image.blit(picture, picture.get_rect(center=(self.box[0] // 2, self.box[1] // 2)))
+
+    def handleEvent(self, event, clock):
+        return False
 
 
 class LcarsArrow(_Pressable):

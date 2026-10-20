@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from panel import night as N
 
@@ -79,3 +79,36 @@ def test_unwritable_backlight_warns_once(tmp_path, caplog):
         bl.set(level)
     assert bl.path is None
     assert len([r for r in caplog.records if "not writable" in r.message]) == 1
+
+
+def test_sun_ends_follow_home_assistant_then_fall_back():
+    w = N.parse_window("sunset-sunrise")
+    sun = {"sunset": N.dtime(18, 24), "sunrise": N.dtime(7, 23)}
+    assert N.in_window(w, at("18:24")(), sun)
+    assert N.in_window(w, at("07:22")(), sun)
+    assert not N.in_window(w, at("07:23")(), sun)
+    assert not N.in_window(w, at("18:00")(), sun)
+    # Before Home Assistant answers: 19:00 to 07:00.
+    assert not N.in_window(w, at("18:30")())
+    assert N.in_window(w, at("19:00")())
+    mixed = N.parse_window("21:00-Sunrise")
+    assert N.in_window(mixed, at("07:00")(), sun)
+    assert not N.in_window(mixed, at("20:59")(), sun)
+
+
+def test_sun_times_from_home_assistant():
+    setting = datetime(2026, 10, 21, 18, 24, 3).astimezone()   # local, whatever the zone
+    rising = datetime(2026, 10, 21, 7, 23, 51).astimezone()
+    times = N.sun_times({"next_setting": setting.astimezone(timezone.utc).isoformat(),
+                         "next_rising": rising.astimezone(timezone.utc).isoformat()})
+    assert times == {"sunset": N.dtime(18, 24), "sunrise": N.dtime(7, 23)}
+    assert N.sun_times({}) == {}
+    assert N.sun_times({"next_setting": None}) == {}
+
+
+def test_night_reads_the_sun_each_time():
+    sun = {"sunset": N.dtime(18, 0), "sunrise": N.dtime(7, 0)}
+    night = N.Night("sunset-sunrise", 0.08, 1.0, 60, now=at("18:30"), clock=Clock(), sun=lambda: sun)
+    assert night.is_night
+    sun["sunset"] = N.dtime(19, 0)
+    assert not night.is_night

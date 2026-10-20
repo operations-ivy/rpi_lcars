@@ -1,14 +1,16 @@
 """Prometheus metrics on a small HTTP server: counters and gauges with labels,
-nothing more."""
+nothing more. Other read-only JSON documents (the room sensor's, for Home
+Assistant) can be served beside them."""
+import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HELP = {
     "lcars_ha_up": ("gauge", "1 while Home Assistant answers the panel's polls."),
-    "lcars_ha_requests_total": ("counter", "Requests to Home Assistant, by kind (state, call) and result."),
+    "lcars_ha_requests_total": ("counter", "Requests to Home Assistant, by kind (state, items, picture, call) and result."),
     "lcars_unlock_attempts_total": ("counter", "Codes entered, by result (granted, denied, locked_out, hard_locked, no_code)."),
     "lcars_relocks_total": ("counter", "Times the panel locked itself, by reason (idle, dark, hard_locked)."),
-    "lcars_commands_total": ("counter", "Changes sent from the climate screen, by action."),
+    "lcars_commands_total": ("counter", "Changes sent to Home Assistant, by action."),
     "lcars_taps_total": ("counter", "Touches, by whether they only woke the screen."),
     "lcars_screen": ("gauge", "1 for the screen being shown, by screen."),
     "lcars_backlight_level": ("gauge", "Backlight, as a fraction of full (0 is dark)."),
@@ -38,7 +40,7 @@ def _labels(labels):
 KNOWN = {
     "lcars_unlock_attempts_total": ("result", ("granted", "denied", "locked_out", "hard_locked", "no_code")),
     "lcars_relocks_total": ("reason", ("idle", "dark", "hard_locked", "button")),
-    "lcars_commands_total": ("action", ("set_temperature", "set_hvac_mode")),
+    "lcars_commands_total": ("action", ("set_temperature", "set_hvac_mode", "shopping_item")),
     "lcars_taps_total": ("woke", ("true", "false")),
 }
 
@@ -75,14 +77,19 @@ class Metrics:
             out.append(f"{name}{_labels(labels)} {value}")
         return "\n".join(out) + "\n"
 
-    def serve(self, port, host="0.0.0.0"):
-        metrics = self
+    def serve(self, port, host="0.0.0.0", documents=None):
+        """documents: {path: () -> dict}, served as JSON."""
+        metrics, documents = self, documents or {}
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
-                body = metrics.render().encode() if self.path == "/metrics" else b"lcars\n"
-                self.send_response(200 if self.path in ("/metrics", "/") else 404)
-                self.send_header("Content-Type", "text/plain; version=0.0.4")
+                if self.path in documents:
+                    body, kind, code = json.dumps(documents[self.path]()).encode(), "application/json", 200
+                else:
+                    body = metrics.render().encode() if self.path == "/metrics" else b"lcars\n"
+                    kind, code = "text/plain; version=0.0.4", 200 if self.path in ("/metrics", "/") else 404
+                self.send_response(code)
+                self.send_header("Content-Type", kind)
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)

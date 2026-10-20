@@ -66,6 +66,11 @@ class Rig:
             config.LOCK_ENTITY: {"state": "normal", "attributes": {}},
             config.SETPOINT_MIN_ENTITY: {"state": "64.0", "attributes": {}},
             config.SETPOINT_MAX_ENTITY: {"state": "76.0", "attributes": {}},
+            config.SUN_ENTITY: {"state": "above_horizon", "attributes": {
+                "next_setting": datetime(2026, 10, 15, 18, 24).astimezone().isoformat(),
+                "next_rising": datetime(2026, 10, 16, 7, 23).astimezone().isoformat()}},
+            config.WAN_ENTITY: {"state": "on", "attributes": {}},
+            config.MEDIA_PLAYER: {"state": "off", "attributes": {}},
         })
         self.metrics = Metrics()
         self.lock = PanelLock(PIN, idle_seconds=120, clock=self.clock)
@@ -135,12 +140,13 @@ def alert_rig():
     return Rig()
 
 
-def test_status_shows_the_thermostat_and_weather(alert_rig):
+def test_status_is_an_overview(alert_rig):
     rig = alert_rig
     assert rig.screen == "status"
     texts = rig.texts()
-    for expected in ("68.5°F", "HEAT", "HEATING", "70°F", "41%", "73.4°F", "CLOUDY",
-                     "WEATHER ALERT: FLOOD WATCH", "HOME ASSISTANT LINK: NOMINAL", "LIMITS 64-76°F"):
+    for expected in ("INTERIOR", "68.5°F", "HUMIDITY 41%", "68.5°F HEATING", "70°F", "73.4°F CLOUDY",
+                     "ONLINE", "SETS 18:24", "--", "OFFLINE",
+                     "WEATHER ALERT: FLOOD WATCH", "HOME ASSISTANT LINK: NOMINAL"):
         assert expected in texts, expected
     rig.shot("1-status")
 
@@ -151,7 +157,7 @@ def test_no_alert_shows_the_lock(rig):
 
 def test_an_alert_outranks_the_lock_line(alert_rig):
     assert "WEATHER ALERT: FLOOD WATCH" in alert_rig.texts()
-    assert "TOUCH WEATHER FOR DETAILS" in alert_rig.texts()
+    assert "TOUCH THERMOSTAT FOR DETAILS" in alert_rig.texts()
 
 
 def test_keypad_is_shuffled_and_the_code_opens_climate(rig):
@@ -322,15 +328,16 @@ def test_no_home_assistant_yet():
     rig.shot("7-status-no-signal")
 
 
-def test_weather_screen():
+def test_thermostat_screen_has_the_thermostat_and_the_weather():
     rig = Rig()
-    rig.tap(rig.key("WEATHER"))
-    assert rig.screen == "weather"
+    rig.tap(rig.key("THERMOSTAT"))
+    assert rig.screen == "thermostat"
     texts = rig.texts()
-    for expected in ("73.4°F", "CLOUDY", "HUMIDITY 78%   WIND ENE 9 MPH", "FLOOD WATCH UNTIL 10 PM",
-                     "TODAY", "72°F", "CHANCE RAIN SHOWERS", "27% RAIN", "TONIGHT", "WEATHER VIA NWS - JUST NOW"):
+    for expected in ("68.5°F", "HEAT", "HEATING", "70°F", "41%", "64-76°F", "CONTROLS SECURED",
+                     "73.4°F", "CLOUDY", "HUMIDITY 78%   WIND ENE 9 MPH", "FLOOD WATCH UNTIL 10 PM",
+                     "TODAY", "72°F", "CHANCE RAIN SHOWERS", "27%", "TONIGHT", "WEATHER VIA NWS - JUST NOW"):
         assert expected in texts, expected
-    rig.shot("8-weather")
+    rig.shot("8-thermostat")
     rig.tap(rig.key("STATUS"))
     assert rig.screen == "status"
 
@@ -339,9 +346,9 @@ def test_weather_on_a_backup_says_alerts_are_unknown():
     web = FakeWeb()
     web.down.add("api.weather.gov")
     rig = Rig(web=web)
-    rig.tap(rig.key("WEATHER"))
+    rig.tap(rig.key("THERMOSTAT"))
     texts = rig.texts()
-    assert "UNAVAILABLE" in texts and "NATIONAL WEATHER SERVICE OFFLINE" in texts
+    assert "ALERTS UNAVAILABLE" in texts
     assert "WEATHER VIA OPEN-METEO - JUST NOW" in texts
     rig.shot("9-weather-backup")
 
@@ -351,7 +358,7 @@ def test_all_weather_down_is_graceful():
     web.down |= {"api.weather.gov", "api.open-meteo.com", "api.met.no"}
     rig = Rig(web=web)
     assert "WEATHER ALERTS UNAVAILABLE" in rig.texts() or "CONTROLS SECURED" in rig.texts()
-    rig.tap(rig.key("WEATHER"))
+    rig.tap(rig.key("THERMOSTAT"))
     texts = rig.texts()
     assert "WEATHER UNAVAILABLE" in texts and "WEATHER: ALL SOURCES OFFLINE" in texts
     rig.shot("10-weather-offline")
@@ -381,16 +388,117 @@ def test_colour_level_darkens_the_frame():
     assert all(abs(dv - round(bv * 204 / 255)) <= 1 for bv, dv in zip(b, d)), (b, d)
 
 
-def test_room_line():
+def test_status_leads_with_the_room():
     from datasources.room import Room
     from test_room import FakeSHT, reading
-    assert not [t for t in Rig().texts() if "ROOM" in t]           # no sensor: no line
+    assert "INTERIOR" in Rig().texts()                             # no sensor: the thermostat's
     dev = FakeSHT(reading(22.0, 45.0))
     room = Room(device=dev)
     room.poll()
     rig = Rig(room=room)
-    assert "ROOM 71.6°F  45%" in rig.texts()
+    texts = rig.texts()
+    assert "ROOM" in texts and "71.6°F" in texts and "HUMIDITY 45%" in texts
+    assert "68.5°F HEATING" in texts                               # the thermostat, as a row
     rig.shot("12-status-room")
     room.updated -= 600                                           # stale: offline
     rig.tick()
-    assert "ROOM SENSOR OFFLINE" in rig.texts()
+    assert "SENSOR OFFLINE" in rig.texts()
+
+
+def png(colour=(255, 153, 0), size=(64, 64)):
+    import io
+    surface = pygame.Surface(size)
+    surface.fill(colour)
+    buf = io.BytesIO()
+    pygame.image.save(surface, buf, "x.png")
+    return buf.getvalue()
+
+
+def test_clock_network_and_sun_on_status():
+    rig = Rig(web=quiet_web())
+    texts = rig.texts()
+    assert datetime.now().strftime("%H:%M") in texts
+    assert "BRICK 1982" not in texts
+    assert any(t.startswith("STARDATE ") and ":" not in t for t in texts)
+    assert "ONLINE" in texts and "SETS 18:24" in texts
+    rig.ha.set(config.WAN_ENTITY, "off")
+    rig.ha.set(config.SUN_ENTITY, "below_horizon", **rig.ha.attrs(config.SUN_ENTITY))
+    rig.tick()
+    assert "OFFLINE" in rig.texts() and "RISES 07:23" in rig.texts()
+    rig.shot("13-status-offline-night")
+
+
+def test_sidebar_has_shopping_and_ps5_only_when_configured(monkeypatch):
+    rig = Rig(web=quiet_web())
+    assert rig.key("SHOPPING") and rig.key("PS5")
+    assert rig.key("CLIMATE").rect.bottom == 396      # the climate block still ends where the frame's does
+    monkeypatch.setattr(config, "SHOPPING_LIST", "")
+    monkeypatch.setattr(config, "MEDIA_PLAYER", "")
+    rig = Rig(web=quiet_web())
+    texts = [k.text for k in rig.sprites(LcarsKey)]
+    assert "SHOPPING" not in texts and "PS5" not in texts
+    assert rig.key("CLIMATE").rect.height == 147
+
+
+def test_shopping_list_ticks_off_even_when_read_only(monkeypatch):
+    monkeypatch.setattr(config, "READ_ONLY", True)
+    rig = Rig(web=quiet_web())
+    rig.ha._items = [{"summary": "Milk", "uid": "a", "status": "needs_action"},
+                     {"summary": "Coffee", "uid": "b", "status": "completed"},
+                     {"summary": "A very long item name that goes on and on past the end", "uid": "c",
+                      "status": "needs_action"}]
+    rig.tap(rig.key("SHOPPING"))
+    assert rig.screen == "shopping"
+    assert "2 ITEMS NEEDED" in rig.texts()
+    order = [k.text for k in rig.sprites(LcarsKey) if k.align == "left"]
+    assert order[0] == "MILK" and order[-1] == "COFFEE"   # ticked ones last
+    rig.shot("14-shopping")
+    rig.tap(rig.key("MILK"))
+    assert rig.ha.calls == [("todo.update_item", {"entity_id": "todo.shopping_list", "item": "a",
+                                                  "status": "completed"})]
+    assert "1 ITEM NEEDED" in rig.texts()
+    assert rig.metrics.get("lcars_commands_total", action="shopping_item") == 1
+    rig.tap(rig.key("COFFEE"))                             # and back on
+    assert rig.ha.calls[-1][1]["status"] == "needs_action"
+
+
+def test_shopping_list_empty_and_unavailable():
+    rig = Rig(web=quiet_web())
+    rig.tap(rig.key("SHOPPING"))
+    assert "SHOPPING LIST UNAVAILABLE" in rig.texts()
+    rig.ha._items = []
+    rig.tick()
+    assert "NOTHING NEEDED" in rig.texts()
+    assert "ADD ITEMS FROM THE HOME ASSISTANT APP" in rig.texts()
+
+
+def test_ps5_screen():
+    rig = Rig(web=quiet_web())
+    rig.ha._pictures[config.MEDIA_IMAGE] = ("k", png())
+    rig.tap(rig.key("PS5"))
+    assert rig.screen == "media"
+    assert "OFFLINE" in rig.texts() and "LAST PLAYED" in rig.texts()
+    rig.shot("15-ps5-off")
+    rig.ha.set(config.MEDIA_PLAYER, "playing", media_title="Astro Bot")
+    rig.ha._pictures[config.MEDIA_PLAYER] = ("k2", png((153, 153, 255)))
+    rig.tick()
+    assert "PLAYING" in rig.texts() and "NOW PLAYING" in rig.texts() and "ASTRO BOT" in rig.texts()
+    assert rig.ui.screenSurface.get_at((280, 250))[:3] == (153, 153, 255)
+    rig.shot("16-ps5-playing")
+    rig.ha._pictures[config.MEDIA_PLAYER] = ("k3", b"not a picture")
+    rig.tick()                                             # doesn't crash
+
+
+def test_forecast_names_fit_the_column():
+    from screens.thermostat import short_name
+    assert short_name("FRIDAY NIGHT") == "FRI NIGHT"
+    assert short_name("THIS AFTERNOON") == "AFTERNOON"
+    assert short_name("TONIGHT") == "TONIGHT"
+
+
+def test_status_rows_for_shopping_and_ps5():
+    rig = Rig(web=quiet_web())
+    rig.ha._items = [{"summary": "Milk", "uid": "a", "status": "needs_action"}]
+    rig.ha.set(config.MEDIA_PLAYER, "playing", media_title="Astro Bot")
+    rig.tick()
+    assert "1 NEEDED" in rig.texts() and "PLAYING ASTRO BOT" in rig.texts()
