@@ -1,7 +1,9 @@
 """Night and the backlight: dark and silent overnight, woken (dimmed) by a tap
 for a while. The first tap on a dark screen only wakes it, so nothing is
 pressed by accident. The backlight is /sys/class/backlight, writable by the
-video group (brick1982's udev rule)."""
+video group (brick1982's udev rule).
+Either end of the night can be "sunset" or "sunrise", from Home Assistant's
+sun.sun; until Home Assistant has answered, those are FALLBACK."""
 import logging
 import time
 from datetime import datetime, time as dtime
@@ -9,20 +11,37 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
+SUN_EVENTS = {"sunset": "next_setting", "sunrise": "next_rising"}
+FALLBACK = {"sunset": dtime(19, 0), "sunrise": dtime(7, 0)}
+
 
 def parse_window(text):
-    """"HH:MM-HH:MM" (may wrap past midnight), or empty for never."""
+    """"HH:MM-HH:MM" (may wrap past midnight; either end may be "sunset" or
+    "sunrise"), or empty for never."""
     text = (text or "").strip()
     if not text:
         return None
-    start, end = (dtime.fromisoformat(t.strip()) for t in text.split("-"))
-    return start, end
+    ends = [t.strip().lower() for t in text.split("-")]
+    return tuple(t if t in SUN_EVENTS else dtime.fromisoformat(t) for t in ends)
 
 
-def in_window(window, at):
+def sun_times(attrs):
+    """{"sunset": time, "sunrise": time} (local) from sun.sun's attributes;
+    either is missing when Home Assistant hasn't said."""
+    out = {}
+    for name, attr in SUN_EVENTS.items():
+        try:
+            out[name] = datetime.fromisoformat(attrs[attr]).astimezone().time().replace(second=0, microsecond=0)
+        except (KeyError, TypeError, ValueError):
+            pass
+    return out
+
+
+def in_window(window, at, sun=None):
     if window is None:
         return False
-    start, end = window
+    sun = sun or {}
+    start, end = (sun.get(t, FALLBACK[t]) if isinstance(t, str) else t for t in window)
     t = at.time()
     return start <= t < end if start <= end else t >= start or t < end
 
@@ -50,17 +69,18 @@ class Backlight:
 
 class Night:
     def __init__(self, window, night_level, day_level, wake_seconds, backlight=None,
-                 now=datetime.now, clock=time.monotonic):
+                 now=datetime.now, clock=time.monotonic, sun=dict):
         self.window = parse_window(window)
         self.night_level, self.day_level = night_level, day_level
         self.wake_seconds = wake_seconds
         self.backlight = backlight
         self.now, self.clock = now, clock
+        self.sun = sun  # () -> sun_times(...)
         self._awake_until = 0.0
 
     @property
     def is_night(self):
-        return in_window(self.window, self.now())
+        return in_window(self.window, self.now(), self.sun())
 
     @property
     def dark(self):

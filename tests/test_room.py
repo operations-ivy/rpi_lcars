@@ -80,3 +80,12 @@ def test_a_bad_reading_keeps_the_last_good_one():
     assert not room.poll()
     assert room.error == "BAD READING"
     assert room.temperature == pytest.approx(71.6, abs=0.01)
+
+
+def test_document_for_home_assistant():
+    room = R.Room(device=FakeSHT(reading(22.0, 45.0)))
+    assert room.document() == {"up": False, "temperature_f": None, "humidity": None}
+    room.poll()
+    assert room.document() == {"up": True, "temperature_f": 71.6, "humidity": 45.0}
+    room.updated -= 600
+    assert room.document()["up"] is False

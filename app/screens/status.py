@@ -6,8 +6,8 @@ from screens.base import LEFT, RIGHT, TOP, PanelScreen
 from ui import colours
 from ui.widgets.panel_widgets import LcarsLabel
 
-ROWS = ("MODE", "STATUS", "TARGET", "HUMIDITY", "EXTERIOR", "CONDITIONS")
-COL_LABEL, COL_VALUE = 470, 610
+ROWS = ("MODE", "STATUS", "TARGET", "HUMIDITY", "EXTERIOR", "CONDITIONS", "NETWORK", "SUN")
+COL_LABEL, COL_VALUE, ROW_HEIGHT = 470, 610, 29
 
 
 class ScreenStatus(PanelScreen):
@@ -24,7 +24,7 @@ class ScreenStatus(PanelScreen):
 
         self.values = {}
         for i, row in enumerate(ROWS):
-            top = TOP + 10 + i * 36
+            top = TOP + 10 + i * ROW_HEIGHT
             self.add(LcarsLabel(colours.PURPLE, (top, COL_LABEL), row, 1.2))
             self.values[row] = self.add(LcarsLabel(colours.BLUE, (top, COL_VALUE), "--", 1.2,
                                                    max_width=RIGHT - COL_VALUE))
@@ -57,6 +57,9 @@ class ScreenStatus(PanelScreen):
         stale = p.weather_stale()
         self.values["EXTERIOR"].set(fmt_temp(temp, "°F"), colours.GREY_BLUE if stale else colours.BLUE)
         self.values["CONDITIONS"].set(condition or "--", colours.GREY_BLUE if stale else colours.BLUE)
+        network = p.network() or ("--", True)
+        self.values["NETWORK"].set(network[0], colours.BLUE if network[1] else colours.RED)
+        self.values["SUN"].set(p.sun_line() or "--")
 
         alert, kind = p.alert_line()
         alert_colour = {"alert": colours.RED, "ok": colours.GREY_BLUE, "unknown": colours.ORANGE}[kind]

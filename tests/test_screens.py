@@ -66,6 +66,11 @@ class Rig:
             config.LOCK_ENTITY: {"state": "normal", "attributes": {}},
             config.SETPOINT_MIN_ENTITY: {"state": "64.0", "attributes": {}},
             config.SETPOINT_MAX_ENTITY: {"state": "76.0", "attributes": {}},
+            config.SUN_ENTITY: {"state": "above_horizon", "attributes": {
+                "next_setting": datetime(2026, 10, 15, 18, 24).astimezone().isoformat(),
+                "next_rising": datetime(2026, 10, 16, 7, 23).astimezone().isoformat()}},
+            config.WAN_ENTITY: {"state": "on", "attributes": {}},
+            config.MEDIA_PLAYER: {"state": "off", "attributes": {}},
         })
         self.metrics = Metrics()
         self.lock = PanelLock(PIN, idle_seconds=120, clock=self.clock)
@@ -394,3 +399,87 @@ def test_room_line():
     room.updated -= 600                                           # stale: offline
     rig.tick()
     assert "ROOM SENSOR OFFLINE" in rig.texts()
+
+
+def png(colour=(255, 153, 0), size=(64, 64)):
+    import io
+    surface = pygame.Surface(size)
+    surface.fill(colour)
+    buf = io.BytesIO()
+    pygame.image.save(surface, buf, "x.png")
+    return buf.getvalue()
+
+
+def test_clock_network_and_sun_on_status():
+    rig = Rig(web=quiet_web())
+    texts = rig.texts()
+    assert datetime.now().strftime("%H:%M") in texts
+    assert "BRICK 1982" not in texts
+    assert any(t.startswith("STARDATE ") and ":" not in t for t in texts)
+    assert "ONLINE" in texts and "SETS 18:24" in texts
+    rig.ha.set(config.WAN_ENTITY, "off")
+    rig.ha.set(config.SUN_ENTITY, "below_horizon", **rig.ha.attrs(config.SUN_ENTITY))
+    rig.tick()
+    assert "OFFLINE" in rig.texts() and "RISES 07:23" in rig.texts()
+    rig.shot("13-status-offline-night")
+
+
+def test_sidebar_has_shopping_and_ps5_only_when_configured(monkeypatch):
+    rig = Rig(web=quiet_web())
+    assert rig.key("SHOPPING") and rig.key("PS5")
+    assert rig.key("CLIMATE").rect.bottom == 396      # the climate block still ends where the frame's does
+    monkeypatch.setattr(config, "SHOPPING_LIST", "")
+    monkeypatch.setattr(config, "MEDIA_PLAYER", "")
+    rig = Rig(web=quiet_web())
+    texts = [k.text for k in rig.sprites(LcarsKey)]
+    assert "SHOPPING" not in texts and "PS5" not in texts
+    assert rig.key("CLIMATE").rect.height == 147
+
+
+def test_shopping_list_ticks_off_even_when_read_only(monkeypatch):
+    monkeypatch.setattr(config, "READ_ONLY", True)
+    rig = Rig(web=quiet_web())
+    rig.ha._items = [{"summary": "Milk", "uid": "a", "status": "needs_action"},
+                     {"summary": "Coffee", "uid": "b", "status": "completed"},
+                     {"summary": "A very long item name that goes on and on past the end", "uid": "c",
+                      "status": "needs_action"}]
+    rig.tap(rig.key("SHOPPING"))
+    assert rig.screen == "shopping"
+    assert "2 ITEMS NEEDED" in rig.texts()
+    order = [k.text for k in rig.sprites(LcarsKey) if k.align == "left"]
+    assert order[0] == "MILK" and order[-1] == "COFFEE"   # ticked ones last
+    rig.shot("14-shopping")
+    rig.tap(rig.key("MILK"))
+    assert rig.ha.calls == [("todo.update_item", {"entity_id": "todo.shopping_list", "item": "a",
+                                                  "status": "completed"})]
+    assert "1 ITEM NEEDED" in rig.texts()
+    assert rig.metrics.get("lcars_commands_total", action="shopping_item") == 1
+    rig.tap(rig.key("COFFEE"))                             # and back on
+    assert rig.ha.calls[-1][1]["status"] == "needs_action"
+
+
+def test_shopping_list_empty_and_unavailable():
+    rig = Rig(web=quiet_web())
+    rig.tap(rig.key("SHOPPING"))
+    assert "SHOPPING LIST UNAVAILABLE" in rig.texts()
+    rig.ha._items = []
+    rig.tick()
+    assert "NOTHING NEEDED" in rig.texts()
+    assert "ADD ITEMS FROM THE HOME ASSISTANT APP" in rig.texts()
+
+
+def test_ps5_screen():
+    rig = Rig(web=quiet_web())
+    rig.ha._pictures[config.MEDIA_IMAGE] = ("k", png())
+    rig.tap(rig.key("PS5"))
+    assert rig.screen == "media"
+    assert "OFFLINE" in rig.texts() and "LAST PLAYED" in rig.texts()
+    rig.shot("15-ps5-off")
+    rig.ha.set(config.MEDIA_PLAYER, "playing", media_title="Astro Bot")
+    rig.ha._pictures[config.MEDIA_PLAYER] = ("k2", png((153, 153, 255)))
+    rig.tick()
+    assert "PLAYING" in rig.texts() and "NOW PLAYING" in rig.texts() and "ASTRO BOT" in rig.texts()
+    assert rig.ui.screenSurface.get_at((280, 250))[:3] == (153, 153, 255)
+    rig.shot("16-ps5-playing")
+    rig.ha._pictures[config.MEDIA_PLAYER] = ("k3", b"not a picture")
+    rig.tick()                                             # doesn't crash

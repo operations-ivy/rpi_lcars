@@ -6,6 +6,7 @@ import time
 
 import config
 from panel import lock as L
+from panel.night import sun_times
 from ui.utils import sound
 
 class Panel:
@@ -95,6 +96,43 @@ class Panel:
             return False, "CONNECTING"
         return True, "NOMINAL"
 
+    def network(self):
+        """(text, ok) for the internet, or None without a WAN entity."""
+        if not self.cfg.WAN_ENTITY:
+            return None
+        state = self.ha.value(self.cfg.WAN_ENTITY)
+        if state is None:
+            return "--", True
+        return ("ONLINE", True) if state == "on" else ("OFFLINE", False)
+
+    def sun_line(self):
+        """"SETS 18:24" while the sun is up, "RISES 07:23" while it's down;
+        None until Home Assistant has said."""
+        state = self.ha.value(self.cfg.SUN_ENTITY)
+        times = sun_times(self.ha.attrs(self.cfg.SUN_ENTITY))
+        word, key = ("SETS", "sunset") if state == "above_horizon" else ("RISES", "sunrise")
+        if state is None or key not in times:
+            return None
+        return f"{word} {times[key]:%H:%M}"
+
+    def shopping(self):
+        """The shopping list: open items first, then the ticked ones; None
+        before Home Assistant has sent it."""
+        items = self.ha.items()
+        if items is None:
+            return None
+        return ([i for i in items if i.get("status") != "completed"]
+                + [i for i in items if i.get("status") == "completed"])
+
+    def media(self):
+        """The console: {"state", "title", "picture"}; picture is image bytes
+        or None. The player's own picture while it has one, else the game
+        last played."""
+        player, image = self.cfg.MEDIA_PLAYER, self.cfg.MEDIA_IMAGE
+        attrs = self.ha.attrs(player)
+        picture = self.ha.picture(player) or (self.ha.picture(image) if image else None)
+        return {"state": self.ha.value(player), "title": attrs.get("media_title"), "picture": picture}
+
     # Changes, only while the lock allows them.
 
     def call(self, domain, service, action, **data):
@@ -103,3 +141,12 @@ class Panel:
         self.ha.call(domain, service, **data)
         self.metrics.inc("lcars_commands_total", action=action)
         return True
+
+    def tick_item(self, item):
+        """Tick a shopping list item off, or back on. Not the thermostat, so
+        neither the lock nor read-only applies."""
+        status = "needs_action" if item.get("status") == "completed" else "completed"
+        self.ha.call("todo", "update_item", entity_id=self.cfg.SHOPPING_LIST, item=item["uid"], status=status)
+        self.ha.set_item_status(item["uid"], status)
+        self.metrics.inc("lcars_commands_total", action="shopping_item")
+        return status
