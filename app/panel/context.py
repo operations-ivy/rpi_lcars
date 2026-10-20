@@ -65,14 +65,12 @@ class Panel:
         current = self.weather.current() if self.weather else {}
         return current.get("temperature"), current.get("condition")
 
-    def room_line(self):
-        """(text, ok) for the room sensor, or None when there's no sensor."""
-        if self.room is None:
+    def room_reading(self):
+        """(°F, humidity) from the room sensor, or None without a sensor or
+        while it's offline."""
+        if self.room is None or not self.room.fresh():
             return None
-        name = self.cfg.ROOM_NAME
-        if not self.room.fresh():
-            return f"{name} SENSOR OFFLINE", False
-        return f"{name} {self.room.temperature:.1f}°F  {self.room.humidity:.0f}%", True
+        return self.room.temperature, self.room.humidity
 
     def weather_stale(self):
         age = self.weather.age() if self.weather else None

@@ -35,7 +35,7 @@ class PanelScreen(LcarsScreen):
     def setup(self, all_sprites):
         self.sprites = all_sprites
         all_sprites.add(LcarsBackgroundImage("assets/lcars_screen_1.png"), layer=0)
-        self.clock = self.add(LcarsLabel(colours.BLACK, (15, 106), "", 1.2, "right"))
+        self.clock = self.add(LcarsLabel(colours.BLACK, (13, 106), "", 1.5, "right"))
         self.add(LcarsLabel(colours.ORANGE, (0, 135), self.title, 2))
         # The first address only: the bar fits one.
         self.add(LcarsLabel(colours.BLACK, (444, 470), next(iter(get_ip_addresses()), "")))
@@ -63,12 +63,12 @@ class PanelScreen(LcarsScreen):
         return out
 
     def nav(self, lower_text, lower_handler=None, lower_colour=colours.PEACH):
-        """The sidebar every screen has: STATUS, WEATHER, a block per extra
-        screen, and the climate block (MONITOR ONLY, without a handler, when
-        read-only). The current screen's block does nothing."""
+        """The sidebar every screen has: STATUS, THERMOSTAT (and the weather),
+        a block per extra screen, and the climate block (MONITOR ONLY, without
+        a handler, when read-only). The current screen's block does nothing."""
         here = self.name
         self.sidebar("upper", colours.BEIGE, "STATUS", None if here == "status" else self.go_status)
-        self.sidebar("middle", colours.ORANGE, "WEATHER", None if here == "weather" else self.go_weather)
+        self.sidebar("middle", colours.ORANGE, "THERMOSTAT", None if here == "thermostat" else self.go_thermostat)
         (top, left), (width, height) = SIDEBAR["lower"]
         for name, colour, text, handler in self.extras():
             self.sidebar(((top, left), (width, EXTRA_HEIGHT)), colour, text, None if here == name else handler)
@@ -109,10 +109,10 @@ class PanelScreen(LcarsScreen):
         self.leave()
         self.loadScreen(ScreenStatus(self.panel))
 
-    def go_weather(self, *_):
-        from screens.weather import ScreenWeather
+    def go_thermostat(self, *_):
+        from screens.thermostat import ScreenThermostat
         self.leave()
-        self.loadScreen(ScreenWeather(self.panel))
+        self.loadScreen(ScreenThermostat(self.panel))
 
     def go_shopping(self, *_):
         from screens.shopping import ScreenShopping
