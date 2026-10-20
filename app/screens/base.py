@@ -35,7 +35,7 @@ class PanelScreen(LcarsScreen):
     def setup(self, all_sprites):
         self.sprites = all_sprites
         all_sprites.add(LcarsBackgroundImage("assets/lcars_screen_1.png"), layer=0)
-        self.clock = self.add(LcarsLabel(colours.BLACK, (16, 106), "", 2.4, "right"))
+        self.clock = self.add(LcarsLabel(colours.BLACK, (15, 106), "", 1.2, "right"))
         self.add(LcarsLabel(colours.ORANGE, (0, 135), self.title, 2))
         # The first address only: the bar fits one.
         self.add(LcarsLabel(colours.BLACK, (444, 470), next(iter(get_ip_addresses()), "")))
