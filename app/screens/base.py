@@ -68,6 +68,8 @@ class PanelScreen(LcarsScreen):
             out.append(("alerts", colours.BLUE, "ALERTS", self.go_alerts))
         if cfg.WIGLE_URL:
             out.append(("wigle", colours.GOLD, "WIGLE", self.go_wigle))
+        if cfg.CALENDARS:
+            out.append(("calendar", colours.BLUE, "CALENDAR", self.go_calendar))
         if cfg.SHOPPING_LIST:
             out.append(("shopping", colours.PURPLE, "SHOPPING", self.go_shopping))
         if cfg.MEDIA_PLAYER:
@@ -165,6 +167,11 @@ class PanelScreen(LcarsScreen):
         from screens.alerts import ScreenAlerts
         self.leave()
         self.loadScreen(ScreenAlerts(self.panel))
+
+    def go_calendar(self, *_):
+        from screens.calendar import ScreenCalendar
+        self.leave()
+        self.loadScreen(ScreenCalendar(self.panel))
 
     def go_wigle(self, *_):
         from screens.wigle import ScreenWigle

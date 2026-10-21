@@ -2,6 +2,7 @@
 LcarsButton puts them bottom right), and arrows and code dots are drawn: the
 LCARS font has no ▲, ▼ or ●."""
 import io
+import unicodedata
 
 import pygame
 from pygame.font import Font
@@ -27,6 +28,15 @@ def beep():
     if not _beep:
         _beep.append(Sound("assets/audio/panel/202.wav"))
     _beep[0].play()
+
+
+def drawable(text, size=1.0):
+    """text the LCARS font can draw: accents folded (É -> E), anything else
+    it has no glyph for (emoji, most symbols) dropped, spaces tidied."""
+    f = font(size)
+    folded = "".join(c for c in unicodedata.normalize("NFKD", str(text)) if not unicodedata.combining(c))
+    kept = "".join(c for c in folded if c == " " or (f.metrics(c) or [None])[0] is not None)
+    return " ".join(kept.split())
 
 
 def wrap(text, size, width, lines):

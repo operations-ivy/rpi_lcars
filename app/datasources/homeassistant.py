@@ -1,7 +1,8 @@
 """Home Assistant's REST API, from a background thread so a slow or missing
 Home Assistant never freezes the screen. The screens read the latest states
-(state()), a to-do list's items (items()) and entity pictures (picture()), and
-queue service calls (call()); the thread does the talking."""
+(state()), a to-do list's items (items()), entity pictures (picture()) and
+calendar events (events()), and queue service calls (call()); the thread does
+the talking."""
 import json
 import logging
 import queue
@@ -9,7 +10,11 @@ import re
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
+from datetime import datetime, timedelta, timezone
+
+from datasources import calendar as cal
 
 log = logging.getLogger(__name__)
 
@@ -21,7 +26,8 @@ _TOKEN = re.compile(r"[?&]token=[^&]*")
 class HomeAssistant(threading.Thread):
     def __init__(self, url, token, entities, poll_seconds=5, metrics=None,
                  opener=urllib.request.urlopen, clock=time.monotonic,
-                 todo=None, todo_seconds=30, pictures=()):
+                 todo=None, todo_seconds=30, pictures=(),
+                 calendars=(), calendar_seconds=300, calendar_days=3, now=None):
         super().__init__(name="homeassistant", daemon=True)
         self.url, self.token = url.rstrip("/"), token
         self.todo, self.todo_seconds = todo, todo_seconds
@@ -34,6 +40,11 @@ class HomeAssistant(threading.Thread):
         self._items = None  # the to-do list's items, once fetched
         self._next_items = 0.0
         self._pictures = {}  # entity -> (key, bytes)
+        self.calendars, self.calendar_seconds, self.calendar_days = list(calendars), calendar_seconds, calendar_days
+        self.now = now or (lambda: datetime.now().astimezone())
+        self._events = None  # every calendar's events, once all have answered
+        self._next_events = 0.0
+        self.events_updated = None  # clock() of the last full answer
         self._lock = threading.Lock()
         self._calls = queue.Queue()
         self._stop = threading.Event()
@@ -69,6 +80,16 @@ class HomeAssistant(threading.Thread):
         before the first fetch."""
         with self._lock:
             return None if self._items is None else [dict(i) for i in self._items]
+
+    def events(self):
+        """Every calendar's events (datasources/calendar.py's parse()), or
+        None before they've all answered once. Kept while HA is down."""
+        with self._lock:
+            return None if self._events is None else list(self._events)
+
+    def events_age(self):
+        """Seconds since the calendars last all answered, or None."""
+        return None if self.events_updated is None else self.clock() - self.events_updated
 
     def set_item_status(self, uid, status):
         """Show a change at once, before Home Assistant confirms it."""
@@ -155,6 +176,7 @@ class HomeAssistant(threading.Thread):
             self.metrics.set("lcars_ha_up", 1 if ok else 0)
         if ok:
             self._fetch_items()
+            self._fetch_events()
             for entity in self.pictures:
                 self._fetch_picture(entity)
 
@@ -173,6 +195,37 @@ class HomeAssistant(threading.Thread):
             return
         with self._lock:
             self._items = items
+
+    def _fetch_events(self):
+        """All the calendars, from the start of today for calendar_days days,
+        every calendar_seconds; all or nothing, so one calendar failing never
+        hides another's events behind a half answer. Titles aren't logged."""
+        if not self.calendars or self.clock() < self._next_events:
+            return
+        self._next_events = self.clock() + self.calendar_seconds
+        now = self.now()
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        span = {"start": start.astimezone(timezone.utc).isoformat(),
+                "end": (start + timedelta(days=self.calendar_days)).astimezone(timezone.utc).isoformat()}
+        events = []
+        for entity in self.calendars:
+            try:
+                raw = self._request("GET", f"/api/calendars/{entity}?{urllib.parse.urlencode(span)}")
+                self._count("calendar", "ok")
+            except Exception as e:  # noqa: BLE001 - the calendar keeps its last events
+                self._count("calendar", "error")
+                log.warning("calendar %s: %s", entity, type(e).__name__)
+                if self.metrics:
+                    self.metrics.set("lcars_calendar_up", 0)
+                return
+            events += [e for e in (cal.parse(r, entity, now.tzinfo) for r in raw or []) if e]
+        with self._lock:
+            self._events = events
+        self.events_updated = self.clock()
+        if self.metrics:
+            self.metrics.set("lcars_calendar_up", 1)
+            self.metrics.set("lcars_calendar_events_today",
+                             sum(len(day[1]) for day in cal.agenda(events, now, 1)))
 
     def _fetch_picture(self, entity):
         s = self.state(entity)
