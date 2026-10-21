@@ -1,7 +1,7 @@
-"""The frame every panel screen shares: the LCARS background, a clock in the
-top corner, a title in the top bar, STATUS and THERMOSTAT on the top bar's
-blocks, the other screens down the sidebar, the stardate and the Home
-Assistant link along the bottom."""
+"""The frame every panel screen shares: the LCARS background, a clock and the
+stardate under it in the top corner, a title in the top bar, STATUS and
+THERMOSTAT on the top bar's blocks, the other screens down the sidebar, the
+Home Assistant link along the bottom."""
 from datetime import datetime
 
 from datasources.network import get_ip_addresses
@@ -46,7 +46,7 @@ class PanelScreen(LcarsScreen):
         self.add(LcarsLabel(colours.ORANGE, (0, 135), self.title, 2))
         # The first address only: the bar fits one.
         self.add(LcarsLabel(colours.BLACK, (444, 470), next(iter(get_ip_addresses()), "")))
-        self.stardate = self.add(LcarsLabel(colours.BLUE, (BOTTOM - 25, LEFT), "", 1.2))
+        self.stardate = self.add(LcarsLabel(colours.BLACK, (46, 106), "", 0.7, "right"))
         self.link = self.add(LcarsLabel(colours.BLUE, (BOTTOM - 25, RIGHT), "", 1.2, "right"))
         self.build()
         self.refresh()
@@ -60,9 +60,8 @@ class PanelScreen(LcarsScreen):
         return self.add(LcarsKey(colour, pos, size, text, handler, align="corner"), layer=2)
 
     def screens(self, action=None):
-        """The sidebar's blocks, in order: (name, colour, text, handler). The
-        last is the screen's own action (climate's SECURE), or CLIMATE
-        unless the panel is read-only."""
+        """The sidebar's blocks, in order: (name, colour, text, handler), and
+        last the screen's own action (the thermostat's UNLOCK or SECURE)."""
         cfg = self.panel.cfg
         out = []
         if cfg.PROMETHEUS_URL or cfg.OVERWATCH_URL:
@@ -76,8 +75,6 @@ class PanelScreen(LcarsScreen):
         if action:
             text, handler, colour = action
             out.append(("action", colour, text, handler))
-        elif not self.panel.read_only:
-            out.append(("climate", colours.PEACH, "CLIMATE", self.go_climate))
         return out
 
     def nav(self, action=None):
@@ -91,6 +88,11 @@ class PanelScreen(LcarsScreen):
             pos, size = TOP_BAR[name]
             self.nav_keys[name] = self.add(LcarsKey(colour, pos, size, text, None if here == name else handler,
                                                 align="corner"), layer=2)
+        # The background splits only the bar's upper row there: black the
+        # whole gap between the two.
+        (top, left), (width, height) = TOP_BAR["status"]
+        gap = TOP_BAR["thermostat"][0][1] - (left + width)
+        self.add(LcarsBlock(colours.BLACK, (top, left + width), (gap, height)), layer=2)
         blocks = self.screens(action)
         slots = [SIDEBAR["upper"], SIDEBAR["middle"]][:len(blocks)]
         rest = len(blocks) - len(slots)
@@ -169,19 +171,14 @@ class PanelScreen(LcarsScreen):
         self.leave()
         self.loadScreen(ScreenWigle(self.panel))
 
-    def go_climate(self, *_):
-        """Climate control if the lock allows it, else the keypad; nothing
-        when read-only."""
-        if self.panel.read_only:
-            self.go_status()
+    def go_authorize(self, *_):
+        """The keypad, or the thermostat if it's open already."""
+        if self.panel.read_only or self.panel.lock.can_change:
+            self.go_thermostat()
             return
+        from screens.authorize import ScreenAuthorize
         self.leave()
-        if self.panel.lock.can_change:
-            from screens.climate import ScreenClimate
-            self.loadScreen(ScreenClimate(self.panel))
-        else:
-            from screens.authorize import ScreenAuthorize
-            self.loadScreen(ScreenAuthorize(self.panel))
+        self.loadScreen(ScreenAuthorize(self.panel))
 
     def leave(self):
         """Called before switching away."""

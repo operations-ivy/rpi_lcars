@@ -15,7 +15,7 @@ class Panel:
                  feeds=None, now=time.time):
         self.ha, self.lock, self.night, self.metrics = ha, lock, night, metrics
         self.cfg, self.clock, self.weather, self.room = cfg, clock, weather, room
-        self.feeds = feeds or {}  # "prometheus", "overwatch", "wigle": datasources.feeds.JsonFeed
+        self.feeds = feeds or {}  # "prometheus", "overwatch", "wigle": datasources.feeds.JsonFeed; "news": datasources.news.NewsFeed
         self.now = now
 
     @property
@@ -56,6 +56,16 @@ class Panel:
         """wigle-sync's status (panel/infra.py), or None before an answer."""
         feed = self.feeds.get("wigle")
         return infra.wigle(feed.data if feed else None, self.now())
+
+    def headline(self):
+        """(item, number, of) for the headline to show now, each held for
+        NEWS_CYCLE_SECONDS; None before the feed has answered."""
+        feed = self.feeds.get("news")
+        items = (feed.data if feed else None) or []
+        if not items:
+            return None
+        i = int(self.now() // self.cfg.NEWS_CYCLE_SECONDS) % len(items)
+        return items[i], i + 1, len(items)
 
     # Touches and frames.
 
@@ -111,6 +121,22 @@ class Panel:
             return None
         return self.room.temperature, self.room.humidity
 
+    def house(self):
+        """(upstairs, downstairs, average) in Home Assistant's unit, each None
+        when missing: upstairs is the room sensor (it reads °F), downstairs
+        the ecobee. No average from one floor alone."""
+        room = self.room_reading()
+        up = None if room is None else (room[0] - 32) * 5 / 9 if self.ha.unit == "°C" else room[0]
+        down = self.thermostat.get("current_temperature")
+        return up, down, None if up is None or down is None else (up + down) / 2
+
+    def house_note(self):
+        """Why there's no average, or ""."""
+        up, down, _ = self.house()
+        if up is None:
+            return "NO UPSTAIRS SENSOR" if self.room is None else "UPSTAIRS SENSOR OFFLINE"
+        return "NO THERMOSTAT READING" if down is None else ""
+
     def weather_stale(self):
         age = self.weather.age() if self.weather else None
         return age is None or age > self.cfg.WEATHER_STALE_SECONDS
@@ -119,11 +145,11 @@ class Panel:
         """(text, colour kind) for the weather alerts: "alert", "ok" or "unknown"."""
         alerts = self.weather.alerts() if self.weather else None
         if alerts is None:
-            return "WEATHER ALERTS UNAVAILABLE", "unknown"
+            return "UNAVAILABLE", "unknown"
         if not alerts:
-            return "NO ACTIVE WEATHER ALERTS", "ok"
-        more = f" +{len(alerts) - 1} MORE" if len(alerts) > 1 else ""
-        return f"WEATHER ALERT: {alerts[0]['event']}{more}", "alert"
+            return "NONE ACTIVE", "ok"
+        more = f" +{len(alerts) - 1}" if len(alerts) > 1 else ""
+        return f"{alerts[0]['event']}{more}", "alert"
 
     def link(self):
         """(ok, text) for the Home Assistant link line."""

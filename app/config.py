@@ -82,6 +82,14 @@ ALERTS_POLL_SECONDS = _float("LCARS_ALERTS_POLL_SECONDS", 30)
 # wigle-console's /api/status (empty: no WIGLE button). It takes ~10 s cold.
 WIGLE_URL = _str("LCARS_WIGLE_URL", "https://wigle.brick.nozdormu.cloud").rstrip("/")
 WIGLE_POLL_SECONDS = _float("LCARS_WIGLE_POLL_SECONDS", 120)
+# Headlines under the house average on STATUS: an RSS feed's top items, one
+# at a time (empty: no headlines). Titles only, never links. The Guardian's
+# US news section, newest first: its US front (/us/rss) lists features first.
+NEWS_URL = _str("LCARS_NEWS_URL", "https://www.theguardian.com/us-news/rss")
+NEWS_SOURCE = _str("LCARS_NEWS_SOURCE", "GUARDIAN HEADLINES").upper()
+NEWS_POLL_SECONDS = _float("LCARS_NEWS_POLL_SECONDS", 900)
+NEWS_COUNT = int(_float("LCARS_NEWS_COUNT", 3))
+NEWS_CYCLE_SECONDS = _float("LCARS_NEWS_CYCLE_SECONDS", 15)
 # A feed older than this is shown as stale.
 FEED_STALE_SECONDS = _float("LCARS_FEED_STALE_SECONDS", 600)
 
@@ -89,7 +97,6 @@ FEED_STALE_SECONDS = _float("LCARS_FEED_STALE_SECONDS", 600)
 # Off unless LCARS_ROOM_SENSOR=true. The Pi warms the air near it: OFFSET (°F)
 # corrects that, measured once against a thermometer.
 ROOM_SENSOR = _bool("LCARS_ROOM_SENSOR", False)
-ROOM_NAME = _str("LCARS_ROOM_NAME", "ROOM").upper()
 ROOM_I2C_BUS = int(_float("LCARS_ROOM_I2C_BUS", 1))
 ROOM_I2C_ADDRESS = int(_str("LCARS_ROOM_I2C_ADDRESS", "0x44"), 0)
 ROOM_OFFSET = _float("LCARS_ROOM_OFFSET", 0)

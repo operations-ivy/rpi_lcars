@@ -60,7 +60,7 @@ class ScreenAuthorize(PanelScreen):
         p.metrics.inc("lcars_unlock_attempts_total", result=result)
         if result == L.GRANTED:
             self.sound_granted.play()
-            self.go_climate()
+            self.go_thermostat()
             return
         self.sound_deny.play()
         if result == L.DENIED:
@@ -72,7 +72,7 @@ class ScreenAuthorize(PanelScreen):
         p = self.panel
         lock = p.lock
         if lock.can_change:  # opened from Home Assistant meanwhile
-            self.go_climate()
+            self.go_thermostat()
             return
         if lock.idle:
             self.go_status()

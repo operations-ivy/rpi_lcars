@@ -20,7 +20,7 @@ HELP = {
     "lcars_room_reads_total": ("counter", "Room sensor reads, by result."),
     "lcars_room_temperature_fahrenheit": ("gauge", "The room's temperature, offset applied."),
     "lcars_room_humidity_percent": ("gauge", "The room's relative humidity."),
-    "lcars_feed_up": ("gauge", "1 while the homelab feed answers, by feed (prometheus, overwatch, wigle)."),
+    "lcars_feed_up": ("gauge", "1 while the homelab feed answers, by feed (prometheus, overwatch, wigle, news)."),
     "lcars_feed_requests_total": ("counter", "Requests to the homelab feeds, by feed and result."),
     "lcars_weather_up": ("gauge", "1 while a weather source answers."),
     "lcars_weather_source": ("gauge", "1 for the weather source the data shown came from, by source."),

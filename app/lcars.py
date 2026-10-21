@@ -8,6 +8,7 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 import config  # noqa: E402
 from datasources.feeds import JsonFeed  # noqa: E402
+from datasources.news import NewsFeed  # noqa: E402
 from datasources.homeassistant import HomeAssistant  # noqa: E402
 from datasources.room import Room  # noqa: E402
 from datasources.weather import Weather  # noqa: E402
@@ -38,6 +39,9 @@ def main():
         if url:
             feeds[name] = JsonFeed(name, url, seconds, metrics)
             feeds[name].start()
+    if config.NEWS_URL:
+        feeds["news"] = NewsFeed("news", config.NEWS_URL, config.NEWS_POLL_SECONDS, metrics, config.NEWS_COUNT)
+        feeds["news"].start()
     room = None
     if config.ROOM_SENSOR:
         room = Room(config.ROOM_I2C_BUS, config.ROOM_I2C_ADDRESS, config.ROOM_OFFSET, metrics=metrics)
