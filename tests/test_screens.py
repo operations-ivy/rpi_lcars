@@ -146,7 +146,7 @@ def test_status_is_an_overview(alert_rig):
     texts = rig.texts()
     for expected in ("HOUSE AVERAGE", "NO UPSTAIRS SENSOR", "73.4°F CLOUDY",
                      "ONLINE", "SETS 18:24", "--",
-                     "WEATHER ALERTS", "FLOOD WATCH", "HOME ASSISTANT LINK: NOMINAL"):
+                     "WEATHER ALERTS", "FLOOD WATCH", "HOME ASSISTANT", "NOMINAL"):
         assert expected in texts, expected
     rig.shot("1-status")
 
@@ -338,7 +338,8 @@ def test_no_home_assistant_yet():
     rig = Rig(states={}, web=quiet_web())
     rig.ha.connected, rig.ha.error = False, "NO SIGNAL"
     rig.tick()
-    assert "HOME ASSISTANT LINK: NO SIGNAL" in rig.texts()
+    assert "NO SIGNAL" in rig.texts()                                    # the HOME ASSISTANT row
+    assert not any(t.startswith("HOME ASSISTANT LINK") for t in rig.texts())
     assert "--" in rig.texts()
     rig.shot("7-status-no-signal")
 
@@ -596,7 +597,8 @@ def test_navigation_top_bar_and_sidebar():
 
 
 NEWS = [{"title": "First headline, long enough that it has to wrap onto a second line of the panel and then "
-                   "keeps going well past the end of that second line too"},
+                   "keeps going well past the end of that second line too, on and on across the whole width of "
+                   "the frame and further still, so that even the full width can't hold it in two lines"},
         {"title": "Second headline"}, {"title": "Third headline"}]
 
 
@@ -610,10 +612,15 @@ def test_status_cycles_the_headlines():
     texts = rig.texts()
     assert "THE GUARDIAN 1/3" in texts
     assert any(t.startswith("First headline") for t in texts) and any(t.endswith("…") for t in texts)
+    first = [l for l in rig.sprites(LcarsLabel) if l.text.startswith("First headline")][0]
+    assert first.rect.left == 140 and first.rect.top >= 380             # along the bottom, full width
     rig.shot("19-status-news")
     clock["t"] = start + 15
     rig.tick()
     assert "THE GUARDIAN 2/3" in rig.texts() and "Second headline" in rig.texts()
+    labels = {l.text: l for l in rig.sprites(LcarsLabel)}
+    assert labels["Second headline"].rect.top == 410                     # one line: on the bottom line
+    assert labels["THE GUARDIAN 2/3"].rect.top == 386                    # just above it
     assert not any(t.startswith("First headline") for t in rig.texts())
     clock["t"] = start + 45                                            # round again
     rig.tick()
