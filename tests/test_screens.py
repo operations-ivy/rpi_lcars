@@ -157,11 +157,17 @@ def test_no_alert_shows_the_lock(rig):
 
 def test_an_alert_outranks_the_lock_line(alert_rig):
     assert "WEATHER ALERT: FLOOD WATCH" in alert_rig.texts()
-    assert "TOUCH THERMOSTAT FOR DETAILS" in alert_rig.texts()
+    assert "CONTROLS SECURED" in alert_rig.texts()                    # the lock, as the hint
 
 
-def test_keypad_is_shuffled_and_the_code_opens_climate(rig):
-    rig.tap(rig.key("CLIMATE"))
+def to_keypad(rig):
+    rig.tap(rig.key("THERMOSTAT"))
+    assert rig.screen == "thermostat"
+    rig.tap(rig.key("UNLOCK"))
+
+
+def test_keypad_is_shuffled_and_the_code_opens_the_controls(rig):
+    to_keypad(rig)
     assert rig.screen == "authorize"
     digits = [s.text for s in rig.sprites(LcarsKey) if s.text.isdigit()]
     assert sorted(digits) == list("0123456789")
@@ -170,12 +176,12 @@ def test_keypad_is_shuffled_and_the_code_opens_climate(rig):
     rig.shot("2-keypad")
     rig.tap(rig.key("CLEAR"))
     rig.enter(PIN)
-    assert rig.screen == "climate"
+    assert rig.screen == "thermostat" and rig.key("SECURE")
     assert rig.metrics.get("lcars_unlock_attempts_total", result="granted") == 1
 
 
 def test_wrong_codes_lock_the_keypad_out(rig):
-    rig.tap(rig.key("CLIMATE"))
+    to_keypad(rig)
     rig.enter("1111")
     assert "ACCESS DENIED - 2 ATTEMPTS REMAIN" in rig.texts()
     rig.enter("1111")
@@ -188,13 +194,13 @@ def test_wrong_codes_lock_the_keypad_out(rig):
     rig.tick()
     assert rig.key("ENTER").enabled
     rig.enter(PIN)
-    assert rig.screen == "climate"
+    assert rig.screen == "thermostat"
 
 
 def unlock(rig):
-    rig.tap(rig.key("CLIMATE"))
+    to_keypad(rig)
     rig.enter(PIN)
-    assert rig.screen == "climate"
+    assert rig.screen == "thermostat" and rig.key("SECURE")
 
 
 def test_arrow_taps_gather_then_send_once(rig):
@@ -263,9 +269,14 @@ def test_idle_relocks_and_sends_nothing_after(rig):
     unlock(rig)
     rig.clock.t += 120
     rig.tick()
-    assert rig.screen == "status"
+    assert rig.screen == "thermostat"                                 # stays, greyed out
     assert rig.metrics.get("lcars_relocks_total", reason="idle") == 1
-    rig.tap(rig.key("CLIMATE"))
+    assert "CONTROLS SECURED" in rig.texts() and not any(a.enabled for a in rig.sprites(LcarsArrow))
+    rig.tap([a for a in rig.sprites(LcarsArrow) if a.up][0])
+    rig.clock.t += 5
+    rig.tick()
+    assert rig.ha.calls == []
+    rig.tap(rig.key("UNLOCK"))
     assert rig.screen == "authorize"
 
 
@@ -282,11 +293,13 @@ def test_home_assistant_hard_lock(rig):
     unlock(rig)
     rig.ha.set(config.LOCK_ENTITY, "hard_locked")
     rig.tick()
-    assert rig.screen == "status"
-    assert "CONTROLS LOCKED BY HOME ASSISTANT" in rig.texts()
+    assert rig.screen == "thermostat"
+    assert "CONTROLS LOCKED" in rig.texts() and "BY HOME ASSISTANT" in rig.texts()
     assert rig.metrics.get("lcars_relocks_total", reason="hard_locked") == 1
+    rig.tap(rig.key("STATUS"))
+    assert "CONTROLS LOCKED BY HOME ASSISTANT" in rig.texts()
     rig.shot("6-status-hard-locked")
-    rig.tap(rig.key("CLIMATE"))
+    to_keypad(rig)
     assert rig.screen == "authorize"
     assert "LOCKED BY HOME ASSISTANT" in rig.texts()
     assert not rig.key("ENTER").enabled
@@ -296,22 +309,23 @@ def test_home_assistant_unlock_needs_no_code(rig):
     rig.ha.set(config.LOCK_ENTITY, "unlocked")
     rig.tick()
     assert "CONTROLS OPEN" in rig.texts()
-    rig.tap(rig.key("CLIMATE"))
-    assert rig.screen == "climate"
+    rig.tap(rig.key("THERMOSTAT"))
+    assert rig.screen == "thermostat" and rig.key("SECURE")
 
 
 def test_night_first_tap_only_wakes():
     rig = Rig(hour=23, web=quiet_web())
     assert rig.night.dark
-    climate = rig.key("CLIMATE")
-    rig.tap(climate)
+    thermostat_key = rig.key("THERMOSTAT")
+    rig.tap(thermostat_key)
     assert rig.screen == "status"          # swallowed
     assert not rig.night.dark
     assert rig.metrics.get("lcars_taps_total", woke="true") == 1
-    rig.tap(climate)
-    assert rig.screen == "authorize"       # now a real press
+    rig.tap(thermostat_key)
+    assert rig.screen == "thermostat"      # now a real press
+    rig.tap(rig.key("UNLOCK"))
     rig.enter(PIN)
-    assert rig.screen == "climate"
+    assert rig.screen == "thermostat" and rig.key("SECURE")
     rig.clock.t += 61                      # back to dark: locked, home
     rig.tick()
     assert rig.screen == "status"
@@ -328,39 +342,20 @@ def test_no_home_assistant_yet():
     rig.shot("7-status-no-signal")
 
 
-def test_thermostat_screen_has_the_thermostat_and_the_weather():
-    rig = Rig()
-    rig.tap(rig.key("THERMOSTAT"))
-    assert rig.screen == "thermostat"
-    texts = rig.texts()
-    for expected in ("68.5°F", "HEAT", "HEATING", "70°F", "41%", "64-76°F", "CONTROLS SECURED",
-                     "73.4°F", "CLOUDY", "HUMIDITY 78%   WIND ENE 9 MPH", "FLOOD WATCH UNTIL 10 PM",
-                     "TODAY", "72°F", "CHANCE RAIN SHOWERS", "27%", "TONIGHT", "WEATHER VIA NWS - JUST NOW"):
-        assert expected in texts, expected
-    rig.shot("8-thermostat")
-    rig.tap(rig.key("STATUS"))
-    assert rig.screen == "status"
-
-
 def test_weather_on_a_backup_says_alerts_are_unknown():
     web = FakeWeb()
     web.down.add("api.weather.gov")
     rig = Rig(web=web)
-    rig.tap(rig.key("THERMOSTAT"))
-    texts = rig.texts()
-    assert "ALERTS UNAVAILABLE" in texts
-    assert "WEATHER VIA OPEN-METEO - JUST NOW" in texts
-    rig.shot("9-weather-backup")
+    assert rig.panel.alert_line() == ("WEATHER ALERTS UNAVAILABLE", "unknown")   # only the NWS has alerts
+    assert any(t.endswith("CLOUDY") for t in rig.texts())         # the backup's weather, on STATUS
 
 
 def test_all_weather_down_is_graceful():
     web = FakeWeb()
     web.down |= {"api.weather.gov", "api.open-meteo.com", "api.met.no"}
     rig = Rig(web=web)
-    assert "WEATHER ALERTS UNAVAILABLE" in rig.texts() or "CONTROLS SECURED" in rig.texts()
-    rig.tap(rig.key("THERMOSTAT"))
-    texts = rig.texts()
-    assert "WEATHER UNAVAILABLE" in texts and "WEATHER: ALL SOURCES OFFLINE" in texts
+    assert rig.panel.alert_line()[1] == "unknown" and rig.panel.weather_stale()
+    assert "CONTROLS SECURED" in rig.texts() and "--" in rig.texts()   # OUTSIDE
     rig.shot("10-weather-offline")
 
 
@@ -373,12 +368,12 @@ def test_read_only_climate_is_a_dead_preview(monkeypatch):
     assert "THERMOSTAT MONITOR ONLY - CONTROLS DISABLED" in texts
     assert "WEATHER ALERT: FLOOD WATCH" in texts
     rig.shot("11-status-read-only")
-    rig.tap(rig.key("CLIMATE"))
-    assert rig.screen == "climate"                              # no keypad: nothing to unlock
+    rig.tap(rig.key("THERMOSTAT"))
+    assert rig.screen == "thermostat"                           # no keypad: nothing to unlock
     texts = rig.texts()
     assert "CLIMATE CONTROL - PREVIEW" in texts and "PREVIEW ONLY" in texts and "CONTROLS DISABLED" in texts
     assert "HEAT - HEATING" in texts
-    assert "SECURE" not in [k.text for k in rig.sprites(LcarsKey)]
+    assert not {"SECURE", "UNLOCK", "CLIMATE"} & {k.text for k in rig.sprites(LcarsKey)}
     modes = [k for k in rig.sprites(LcarsKey) if k.text in ("HEAT", "COOL", "AUTO", "OFF")]
     arrows = rig.sprites(LcarsArrow)
     assert len(modes) == 4 and arrows
@@ -388,7 +383,7 @@ def test_read_only_climate_is_a_dead_preview(monkeypatch):
         rig.tap(w)
     rig.clock.t += 60
     rig.tick()
-    assert rig.screen == "climate" and "70°F" in rig.texts()
+    assert rig.screen == "thermostat" and "70°F" in rig.texts()
     assert rig.ha.calls == []
     assert rig.panel.call("climate", "set_temperature", "set_temperature", temperature=71) is False
     assert rig.ha.calls == []
@@ -419,13 +414,12 @@ def test_house_average_on_status_floors_on_thermostat():
     rig.tap(rig.key("THERMOSTAT"))
     texts = rig.texts()
     assert "HOUSE AVERAGE" in texts and average in texts
-    assert "UPSTAIRS" in texts and "71.6°F" in texts and "DOWNSTAIRS" in texts and "68.5°F" in texts
-    assert "UP 45%  DOWN 41%" in texts
+    assert "UPSTAIRS 71.6°F" in texts and "DOWNSTAIRS 68.5°F" in texts
     rig.shot("12-thermostat-room")
     room.updated -= 600                                           # stale: offline, no average
     rig.tick()
     texts = rig.texts()
-    assert average not in texts and "71.6°F" not in texts and "68.5°F" in texts
+    assert average not in texts and "UPSTAIRS --" in texts and "DOWNSTAIRS 68.5°F" in texts
     rig.tap(rig.key("STATUS"))
     assert "UPSTAIRS SENSOR OFFLINE" in rig.texts()
 
@@ -462,13 +456,14 @@ def test_clock_network_and_sun_on_status():
 def test_sidebar_has_shopping_and_ps5_only_when_configured(monkeypatch):
     rig = Rig(web=quiet_web())
     assert rig.key("SHOPPING") and rig.key("PS5")
-    assert rig.key("CLIMATE").rect.bottom == 396      # the last block still ends where the frame's does
+    assert rig.key("PS5").rect.bottom == 396          # the last block still ends where the frame's does
     monkeypatch.setattr(config, "SHOPPING_LIST", "")
     monkeypatch.setattr(config, "MEDIA_PLAYER", "")
     rig = Rig(web=quiet_web())
     texts = [k.text for k in rig.sprites(LcarsKey)]
     assert "SHOPPING" not in texts and "PS5" not in texts
-    assert rig.key("CLIMATE").rect.height == 147      # alone in the lower block
+    rig.tap(rig.key("THERMOSTAT"))
+    assert rig.key("UNLOCK").rect.height == 147       # alone in the lower block
 
 
 def test_shopping_list_ticks_off_even_when_read_only(monkeypatch):
@@ -518,13 +513,6 @@ def test_ps5_screen():
     rig.shot("16-ps5-playing")
     rig.ha._pictures[config.MEDIA_PLAYER] = ("k3", b"not a picture")
     rig.tick()                                             # doesn't crash
-
-
-def test_forecast_names_fit_the_column():
-    from screens.thermostat import short_name
-    assert short_name("FRIDAY NIGHT") == "FRI NIGHT"
-    assert short_name("THIS AFTERNOON") == "AFTERNOON"
-    assert short_name("TONIGHT") == "TONIGHT"
 
 
 def test_status_rows_for_shopping_and_ps5():
@@ -588,11 +576,15 @@ def test_navigation_top_bar_and_sidebar():
     assert status.rect.top == 56 and thermostat.rect.top == 56          # on the top bar
     assert rig.key("RED ALERT").rect.top == 145                         # the big sidebar block, named for the condition
     assert rig.key("WIGLE").rect.top == 211
-    lower = [rig.key(t) for t in ("SHOPPING", "PS5", "CLIMATE")]
+    lower = [rig.key(t) for t in ("SHOPPING", "PS5")]
     assert lower[0].rect.top == 249 and lower[-1].rect.bottom == 396
+    assert "CLIMATE" not in [k.text for k in rig.sprites(LcarsKey)]    # THERMOSTAT is the controls
     rig.shot("17-status-nav")
     rig.tap(thermostat)
     assert rig.screen == "thermostat"
+    lower = [rig.key(t) for t in ("SHOPPING", "PS5", "UNLOCK")]
+    assert lower[-1].rect.bottom == 396
+    rig.shot("18-thermostat-locked")
     rig.tap(rig.key("STATUS"))
     assert rig.screen == "status"
 

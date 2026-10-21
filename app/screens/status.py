@@ -101,17 +101,17 @@ class ScreenStatus(PanelScreen):
             self.lock_line.set(alert, alert_colour if kind == "alert" else colours.ORANGE)
             self.hint.set("THERMOSTAT MONITOR ONLY - CONTROLS DISABLED")
             return
-        if kind == "alert":
-            # An alert outranks the lock line; the block still shows the lock.
-            self.lock_line.set(alert, colours.RED)
-            self.hint.set("TOUCH THERMOSTAT FOR DETAILS")
-            return
         if lock.remote == L.HARD_LOCKED:
             line, hint, colour = "CONTROLS LOCKED BY HOME ASSISTANT", "UNLOCK FROM HOME ASSISTANT", colours.RED
         elif lock.can_change:
-            line, hint, colour = "CONTROLS OPEN", "TOUCH CLIMATE TO ADJUST", colours.GOLD
+            line, hint, colour = "CONTROLS OPEN", "TOUCH THERMOSTAT TO ADJUST", colours.GOLD
         else:
-            line, hint, colour = "CONTROLS SECURED", "TOUCH CLIMATE AND ENTER CODE TO ADJUST", colours.ORANGE
+            line, hint, colour = "CONTROLS SECURED", "TOUCH THERMOSTAT, THEN UNLOCK, TO ADJUST", colours.ORANGE
+        if kind == "alert":
+            # An alert outranks the lock line; the lock moves to the hint.
+            self.lock_line.set(alert, colours.RED)
+            self.hint.set(line)
+            return
         self.lock_line.set(line, colour)
         self.hint.set(hint)
 
