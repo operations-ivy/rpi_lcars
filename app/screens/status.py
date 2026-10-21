@@ -75,7 +75,7 @@ class ScreenStatus(PanelScreen):
         lock = p.lock
         if p.read_only:
             self.lock_line.set(alert, alert_colour if kind == "alert" else colours.ORANGE)
-            self.hint.set("THERMOSTAT MONITOR ONLY - CONTROLS DISABLED")
+            self.hint.set("")  # the THERMOSTAT screen says PREVIEW; nothing to add here
             return
         if lock.remote == L.HARD_LOCKED:
             line, hint, colour = "CONTROLS LOCKED BY HOME ASSISTANT", "UNLOCK FROM HOME ASSISTANT", colours.RED

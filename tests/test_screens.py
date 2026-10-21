@@ -365,7 +365,7 @@ def test_read_only_climate_is_a_dead_preview(monkeypatch):
     rig.ha.set(config.LOCK_ENTITY, "unlocked")  # even Home Assistant's override
     rig.tick()
     texts = rig.texts()
-    assert "THERMOSTAT MONITOR ONLY - CONTROLS DISABLED" in texts
+    assert not any("MONITOR ONLY" in t or "CONTROLS" in t for t in texts)   # no lock talk when read-only
     assert "WEATHER ALERT: FLOOD WATCH" in texts
     rig.shot("11-status-read-only")
     rig.tap(rig.key("THERMOSTAT"))
