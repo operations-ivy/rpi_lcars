@@ -1,20 +1,19 @@
 """The resting screen: read-only, open to anyone. The house average leads
-(upstairs and downstairs are on the thermostat screen) over a headline (the
-news feed's top few in turn; not a link), then a row each for the thermostat, outside, the internet, the sun,
-the shopping list and the PS5, and the weather alert or the lock. The detail
-is a touch away."""
+(upstairs, downstairs and the thermostat are on the thermostat screen) over a
+headline (the news feed's top few in turn; not a link); on the right, outside,
+the internet, the sun and the shopping list, each a label over its value;
+along the bottom, the weather alert or the lock. The detail is a touch away."""
 from panel import lock as L
-from panel.thermostat import ACTION_LABELS, fmt_temp, targets
+from panel.thermostat import fmt_temp
 from screens.base import LEFT, RIGHT, TOP, PanelScreen
 from ui import colours
 from ui.widgets.panel_widgets import LcarsLabel, wrap
 
-ROWS = ("THERMOSTAT", "TARGET", "OUTSIDE", "NETWORK", "SUN", "SHOPPING", "PS5")
-COL_LABEL, COL_VALUE, ROW_HEIGHT = 450, 585, 32
+ROWS = ("OUTSIDE", "NETWORK", "SUN", "SHOPPING")
+# The right column: each row a small label with its value under it.
+COL_LABEL, ROW_TOP, ROW_HEIGHT, VALUE_DROP = 470, TOP + 12, 56, 20
 # The headline under the average: at most two lines.
-NEWS_TOP, NEWS_WIDTH, NEWS_LINES, NEWS_SIZE, NEWS_HEIGHT = TOP + 170, COL_LABEL - LEFT - 10, 2, 1.1, 24
-PS5_STATES = {"playing": "PLAYING", "paused": "PAUSED", "on": "ONLINE", "idle": "IDLE",
-              "standby": "STANDBY", "off": "OFFLINE"}
+NEWS_TOP, NEWS_WIDTH, NEWS_LINES, NEWS_SIZE, NEWS_HEIGHT = TOP + 170, COL_LABEL - LEFT - 30, 2, 1.1, 24
 
 
 class ScreenStatus(PanelScreen):
@@ -35,10 +34,10 @@ class ScreenStatus(PanelScreen):
 
         self.values = {}
         for i, row in enumerate(self.rows()):
-            top = TOP + 10 + i * ROW_HEIGHT
-            self.add(LcarsLabel(colours.PURPLE, (top, COL_LABEL), row, 1.2))
-            self.values[row] = self.add(LcarsLabel(colours.BLUE, (top, COL_VALUE), "--", 1.2,
-                                                   max_width=RIGHT - COL_VALUE))
+            top = ROW_TOP + i * ROW_HEIGHT
+            self.add(LcarsLabel(colours.PURPLE, (top, COL_LABEL), row, 1.0))
+            self.values[row] = self.add(LcarsLabel(colours.BLUE, (top + VALUE_DROP, COL_LABEL), "--", 1.5,
+                                                   max_width=RIGHT - COL_LABEL))
 
         self.lock_line = self.add(LcarsLabel(colours.ORANGE, (TOP + 245, LEFT), "", 1.4, max_width=RIGHT - LEFT))
         self.hint = self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 280, LEFT), "", 1.0, max_width=RIGHT - LEFT))
@@ -58,25 +57,18 @@ class ScreenStatus(PanelScreen):
 
     def rows(self):
         cfg = self.panel.cfg
-        skip = {"SHOPPING": not cfg.SHOPPING_LIST, "PS5": not cfg.MEDIA_PLAYER}
+        skip = {"SHOPPING": not cfg.SHOPPING_LIST}
         return [r for r in ROWS if not skip.get(r)]
 
     def refresh(self):
         p = self.panel
-        attrs, unit = p.thermostat, p.ha.unit
-        inside = fmt_temp(attrs.get("current_temperature"), unit)
-
+        unit = p.ha.unit
         average = p.house()[2]
         self.big.set("--" if average is None else f"{average:.1f}{unit}",
                      colours.GREY_BLUE if average is None else colours.BEIGE)
         self.note.set(p.house_note())
         self.show_headline()
 
-        action = attrs.get("hvac_action")
-        self.values["THERMOSTAT"].set(f"{inside} {ACTION_LABELS.get(action, (action or '').upper())}".strip(),
-                                      colours.ORANGE if action in ("heating", "cooling") else colours.BLUE)
-        keys = targets(attrs)
-        self.values["TARGET"].set(" - ".join(fmt_temp(attrs.get(k), unit) for k in keys) or "--")
         temp, condition = p.outside()
         self.values["OUTSIDE"].set(f"{fmt_temp(temp, '°F')} {condition or ''}".strip(),
                                    colours.GREY_BLUE if p.weather_stale() else colours.BLUE)
@@ -87,12 +79,6 @@ class ScreenStatus(PanelScreen):
             items = p.shopping()
             needed = None if items is None else sum(1 for i in items if i.get("status") != "completed")
             self.values["SHOPPING"].set("--" if needed is None else f"{needed} NEEDED" if needed else "NOTHING NEEDED")
-        if "PS5" in self.values:
-            media = p.media()
-            state = PS5_STATES.get(media["state"], "--")
-            playing = media["state"] in ("playing", "paused")
-            self.values["PS5"].set(f"{state} {media['title'].upper()}" if playing and media["title"] else state,
-                                   colours.GOLD if playing else colours.BLUE)
 
         alert, kind = p.alert_line()
         alert_colour = {"alert": colours.RED, "ok": colours.GREY_BLUE, "unknown": colours.ORANGE}[kind]
