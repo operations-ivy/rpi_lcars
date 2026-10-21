@@ -12,6 +12,8 @@ log = logging.getLogger(__name__)
 
 
 class JsonFeed(threading.Thread):
+    accept = "application/json"
+
     def __init__(self, name, url, poll_seconds, metrics=None, opener=urllib.request.urlopen,
                  timeout=30, now=time.time):
         super().__init__(name=f"feed-{name}", daemon=True)
@@ -36,9 +38,9 @@ class JsonFeed(threading.Thread):
 
     def poll(self):
         try:
-            req = urllib.request.Request(self.url, headers={"Accept": "application/json"})
+            req = urllib.request.Request(self.url, headers={"Accept": self.accept})
             with self.opener(req, timeout=self.timeout) as r:
-                data = json.loads(r.read())
+                data = self.parse(r.read())
         except Exception as e:  # noqa: BLE001 - shown as offline, tried again next poll
             self.error = "OFFLINE"
             if not self._warned:  # once, not every poll while it's down
@@ -55,6 +57,9 @@ class JsonFeed(threading.Thread):
             self.metrics.set("lcars_feed_up", 1, feed=self.feed)
             self.metrics.inc("lcars_feed_requests_total", feed=self.feed, result="ok")
         return True
+
+    def parse(self, body):
+        return json.loads(body)
 
     def run(self):
         while not self._stop.is_set():

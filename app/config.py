@@ -82,6 +82,13 @@ ALERTS_POLL_SECONDS = _float("LCARS_ALERTS_POLL_SECONDS", 30)
 # wigle-console's /api/status (empty: no WIGLE button). It takes ~10 s cold.
 WIGLE_URL = _str("LCARS_WIGLE_URL", "https://wigle.brick.nozdormu.cloud").rstrip("/")
 WIGLE_POLL_SECONDS = _float("LCARS_WIGLE_POLL_SECONDS", 120)
+# Headlines under the house average on STATUS: an RSS feed's top items, one
+# at a time (empty: no headlines). Titles and standfirsts only, never links.
+NEWS_URL = _str("LCARS_NEWS_URL", "https://www.theguardian.com/us/rss")
+NEWS_SOURCE = _str("LCARS_NEWS_SOURCE", "THE GUARDIAN").upper()
+NEWS_POLL_SECONDS = _float("LCARS_NEWS_POLL_SECONDS", 900)
+NEWS_COUNT = int(_float("LCARS_NEWS_COUNT", 3))
+NEWS_CYCLE_SECONDS = _float("LCARS_NEWS_CYCLE_SECONDS", 15)
 # A feed older than this is shown as stale.
 FEED_STALE_SECONDS = _float("LCARS_FEED_STALE_SECONDS", 600)
 

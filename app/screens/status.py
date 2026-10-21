@@ -1,15 +1,19 @@
 """The resting screen: read-only, open to anyone. The house average leads
-(upstairs and downstairs are on the thermostat screen), then a row each for the thermostat, outside, the internet, the sun,
+(upstairs and downstairs are on the thermostat screen) over a headline and
+its standfirst (the news feed's top few in turn; not a link), then a row each for the thermostat, outside, the internet, the sun,
 the shopping list and the PS5, and the weather alert or the lock. The detail
 is a touch away."""
 from panel import lock as L
 from panel.thermostat import ACTION_LABELS, fmt_temp, targets
 from screens.base import LEFT, RIGHT, TOP, PanelScreen
 from ui import colours
-from ui.widgets.panel_widgets import LcarsLabel
+from ui.widgets.panel_widgets import LcarsLabel, wrap
 
 ROWS = ("THERMOSTAT", "TARGET", "OUTSIDE", "NETWORK", "SUN", "SHOPPING", "PS5")
 COL_LABEL, COL_VALUE, ROW_HEIGHT = 450, 585, 32
+# The headline and standfirst under the average: lines and text size of each.
+NEWS_TOP, NEWS_WIDTH = TOP + 122, COL_LABEL - LEFT - 10
+HEADLINE, STANDFIRST = (2, 1.1, 24), (3, 1.0, 22)
 PS5_STATES = {"playing": "PLAYING", "paused": "PAUSED", "on": "ONLINE", "idle": "IDLE",
               "standby": "STANDBY", "off": "OFFLINE"}
 
@@ -22,8 +26,18 @@ class ScreenStatus(PanelScreen):
         self.nav()
 
         self.add(LcarsLabel(colours.ORANGE, (TOP + 10, LEFT), "HOUSE AVERAGE", 1.5))
-        self.big = self.add(LcarsLabel(colours.BEIGE, (TOP + 35, LEFT), "--", 6))
-        self.note = self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 160, LEFT), "", 1.2, max_width=COL_LABEL - LEFT - 10))
+        self.big = self.add(LcarsLabel(colours.BEIGE, (TOP + 32, LEFT), "--", 4))
+        # Beside the number: why there's no average, and whose headline it is.
+        self.note = self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 50, LEFT + 70), "", 1.0,
+                                        max_width=NEWS_WIDTH - 70))
+        self.source = self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 92, LEFT + 165), "", 1.0,
+                                          max_width=NEWS_WIDTH - 165))
+        self.news = []
+        top = NEWS_TOP
+        for (lines, size, height), colour in ((HEADLINE, colours.BEIGE), (STANDFIRST, colours.GREY_BLUE)):
+            self.news.append([self.add(LcarsLabel(colour, (top + i * height, LEFT), "", size))
+                              for i in range(lines)])
+            top += lines * height + 2
 
         self.values = {}
         for i, row in enumerate(self.rows()):
@@ -34,6 +48,20 @@ class ScreenStatus(PanelScreen):
 
         self.lock_line = self.add(LcarsLabel(colours.ORANGE, (TOP + 245, LEFT), "", 1.4, max_width=RIGHT - LEFT))
         self.hint = self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 280, LEFT), "", 1.0, max_width=RIGHT - LEFT))
+
+    def show_headline(self):
+        p = self.panel
+        shown = p.headline()
+        if shown is None:
+            self.source.set(f"{p.cfg.NEWS_SOURCE} OFFLINE" if "news" in p.feeds else "")
+            texts = ("", "")
+        else:
+            item, number, of = shown
+            self.source.set(f"{p.cfg.NEWS_SOURCE} {number}/{of}")
+            texts = (item["title"], item["preview"])
+        for labels, text, (lines, size, _) in zip(self.news, texts, (HEADLINE, STANDFIRST)):
+            for label, line in zip(labels, wrap(text, size, NEWS_WIDTH, lines) + [""] * lines):
+                label.set(line)
 
     def rows(self):
         cfg = self.panel.cfg
@@ -49,6 +77,7 @@ class ScreenStatus(PanelScreen):
         self.big.set("--" if average is None else f"{average:.1f}{unit}",
                      colours.GREY_BLUE if average is None else colours.BEIGE)
         self.note.set(p.house_note())
+        self.show_headline()
 
         action = attrs.get("hvac_action")
         self.values["THERMOSTAT"].set(f"{inside} {ACTION_LABELS.get(action, (action or '').upper())}".strip(),

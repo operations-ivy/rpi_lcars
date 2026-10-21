@@ -582,6 +582,41 @@ def test_navigation_top_bar_and_sidebar():
     assert rig.screen == "status"
 
 
+NEWS = [{"title": "First headline, long enough that it has to wrap onto a second line of the panel and then keeps going well past the end of that second line too",
+         "preview": "The standfirst for the first story"},
+        {"title": "Second headline", "preview": "Second standfirst"},
+        {"title": "Third headline", "preview": ""}]
+
+
+def test_status_cycles_the_headlines():
+    clock = {"t": NOW}
+    rig = Rig(web=quiet_web(), feeds={"news": FakeFeed(NEWS)}, now=lambda: clock["t"])
+    rig.panel.cfg.NEWS_CYCLE_SECONDS = 15
+    start = int(NOW // 15) * 15
+    clock["t"] = start
+    rig.tick()
+    texts = rig.texts()
+    assert "THE GUARDIAN 1/3" in texts and "The standfirst for the first story" in texts
+    assert any(t.startswith("First headline") for t in texts) and any(t.endswith("…") for t in texts)
+    rig.shot("19-status-news")
+    clock["t"] = start + 15
+    rig.tick()
+    assert "THE GUARDIAN 2/3" in rig.texts() and "Second headline" in rig.texts()
+    assert "The standfirst for the first story" not in rig.texts()
+    clock["t"] = start + 45                                            # round again
+    rig.tick()
+    assert "THE GUARDIAN 1/3" in rig.texts()
+    news = [s for s in rig.sprites(LcarsLabel) if s.text == "Second standfirst" or s.text.startswith("First")]
+    pos = news[0].rect.center
+    rig.tap(pos)                                                       # not a link
+    assert rig.screen == "status"
+
+
+def test_status_says_when_the_news_is_offline():
+    rig = Rig(web=quiet_web(), feeds={"news": FakeFeed(None)}, now=lambda: NOW)
+    assert "THE GUARDIAN OFFLINE" in rig.texts()
+
+
 def test_alerts_screen():
     rig = Rig(web=quiet_web(), feeds=feeds(), now=lambda: NOW)
     rig.tap(rig.key("RED ALERT"))

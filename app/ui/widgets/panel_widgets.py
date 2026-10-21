@@ -29,6 +29,22 @@ def beep():
     _beep[0].play()
 
 
+def wrap(text, size, width, lines):
+    """text in at most lines lines no wider than width; "…" ends it when cut."""
+    f, words, out = font(size), str(text).split(), []
+    while words and len(out) < lines:
+        line = words.pop(0)
+        while words and f.size(f"{line} {words[0]}")[0] <= width:
+            line += " " + words.pop(0)
+        out.append(line)
+    if words and out:
+        last = out[-1].split()
+        while len(last) > 1 and f.size(" ".join(last) + "…")[0] > width:
+            last.pop()
+        out[-1] = " ".join(last) + "…"
+    return out
+
+
 class LcarsLabel(LcarsWidget):
     """Text anchored at (top, x): its left edge, centre or right edge sits on x.
     Re-renders only when the text or colour changes."""

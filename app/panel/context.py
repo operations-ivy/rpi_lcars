@@ -15,7 +15,7 @@ class Panel:
                  feeds=None, now=time.time):
         self.ha, self.lock, self.night, self.metrics = ha, lock, night, metrics
         self.cfg, self.clock, self.weather, self.room = cfg, clock, weather, room
-        self.feeds = feeds or {}  # "prometheus", "overwatch", "wigle": datasources.feeds.JsonFeed
+        self.feeds = feeds or {}  # "prometheus", "overwatch", "wigle": datasources.feeds.JsonFeed; "news": datasources.news.NewsFeed
         self.now = now
 
     @property
@@ -56,6 +56,16 @@ class Panel:
         """wigle-sync's status (panel/infra.py), or None before an answer."""
         feed = self.feeds.get("wigle")
         return infra.wigle(feed.data if feed else None, self.now())
+
+    def headline(self):
+        """(item, number, of) for the headline to show now, each held for
+        NEWS_CYCLE_SECONDS; None before the feed has answered."""
+        feed = self.feeds.get("news")
+        items = (feed.data if feed else None) or []
+        if not items:
+            return None
+        i = int(self.now() // self.cfg.NEWS_CYCLE_SECONDS) % len(items)
+        return items[i], i + 1, len(items)
 
     # Touches and frames.
 
