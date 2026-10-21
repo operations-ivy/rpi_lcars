@@ -1,22 +1,61 @@
-"""What every screen shares: Home Assistant, the weather, the lock, night and
-the metrics.
+"""What every screen shares: Home Assistant, the weather, the homelab's feeds
+(alerts, wigle-sync), the lock, night and the metrics.
 The UI loop calls tick() every frame and tap() on every touch; the screens
 read from it and never talk to Home Assistant themselves."""
 import time
 
 import config
+from panel import infra
 from panel import lock as L
 from panel.night import sun_times
 from ui.utils import sound
 
 class Panel:
-    def __init__(self, ha, lock, night, metrics, cfg=config, clock=time.monotonic, weather=None, room=None):
+    def __init__(self, ha, lock, night, metrics, cfg=config, clock=time.monotonic, weather=None, room=None,
+                 feeds=None, now=time.time):
         self.ha, self.lock, self.night, self.metrics = ha, lock, night, metrics
         self.cfg, self.clock, self.weather, self.room = cfg, clock, weather, room
+        self.feeds = feeds or {}  # "prometheus", "overwatch", "wigle": datasources.feeds.JsonFeed
+        self.now = now
 
     @property
     def read_only(self):
         return self.cfg.READ_ONLY
+
+    # The homelab's feeds.
+
+    def feed_age(self, name):
+        """Seconds since the feed last answered; None if it never has or
+        there's no such feed."""
+        feed = self.feeds.get(name)
+        return feed.age() if feed else None
+
+    def feed_stale(self, name):
+        age = self.feed_age(name)
+        return age is None or age > self.cfg.FEED_STALE_SECONDS
+
+    def alerts(self):
+        """{"infra": [...] or None, "watch": {...} or None, "condition"}
+        (panel/infra.py). A feed that's off or stale reads as None."""
+        # Every frame asks (the ALERTS block's colour): work it out again only
+        # when a feed answers, or every 10 s as overwatch's alerts age.
+        key = (tuple(f.updated for f in self.feeds.values()), int(self.now() // 10))
+        if getattr(self, "_alerts_key", None) == key:
+            return self._alerts
+
+        def data(name):
+            feed = self.feeds.get(name)
+            return None if feed is None or self.feed_stale(name) else feed.data
+        found = infra.infra_alerts(data("prometheus"))
+        watch = infra.overwatch(data("overwatch"), self.now())
+        self._alerts_key = key
+        self._alerts = {"infra": found, "watch": watch, "condition": infra.condition(found, watch)}
+        return self._alerts
+
+    def wigle(self):
+        """wigle-sync's status (panel/infra.py), or None before an answer."""
+        feed = self.feeds.get("wigle")
+        return infra.wigle(feed.data if feed else None, self.now())
 
     # Touches and frames.
 

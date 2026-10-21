@@ -57,7 +57,7 @@ def thermostat(mode="heat", **attrs):
 
 
 class Rig:
-    def __init__(self, hour=12, states=None, web=None, colour_level=1.0, room=None):
+    def __init__(self, hour=12, states=None, web=None, colour_level=1.0, room=None, feeds=None, now=None):
         os.chdir(APP)
         self.clock = Clock()
         self.hour = hour
@@ -80,7 +80,7 @@ class Rig:
         self.weather = make_weather(self.web, self.metrics)
         self.weather.poll()
         self.panel = Panel(self.ha, self.lock, self.night, self.metrics, clock=self.clock, weather=self.weather,
-                           room=room)
+                           room=room, feeds=feeds, **({"now": now} if now else {}))
         self.ui = UserInterface(ScreenStatus(self.panel), (800, 480), fps=1000, audio=False, panel=self.panel,
                                 colour_level=colour_level)
         self.tick()
@@ -372,10 +372,8 @@ def test_read_only_never_opens_climate(monkeypatch):
     texts = rig.texts()
     assert "THERMOSTAT MONITOR ONLY - CONTROLS DISABLED" in texts
     assert "WEATHER ALERT: FLOOD WATCH" in texts
-    monitor = rig.key("MONITOR ONLY")
-    rig.tap(monitor)
-    assert rig.screen == "status"
-    assert not [k for k in rig.sprites(LcarsKey) if k.text == "CLIMATE"]
+    keys = [k.text for k in rig.sprites(LcarsKey)]
+    assert "CLIMATE" not in keys and "MONITOR ONLY" not in keys   # no dead block either
     assert rig.panel.call("climate", "set_temperature", "set_temperature", temperature=71) is False
     assert rig.ha.calls == []
     rig.shot("11-status-read-only")
@@ -431,13 +429,13 @@ def test_clock_network_and_sun_on_status():
 def test_sidebar_has_shopping_and_ps5_only_when_configured(monkeypatch):
     rig = Rig(web=quiet_web())
     assert rig.key("SHOPPING") and rig.key("PS5")
-    assert rig.key("CLIMATE").rect.bottom == 396      # the climate block still ends where the frame's does
+    assert rig.key("CLIMATE").rect.bottom == 396      # the last block still ends where the frame's does
     monkeypatch.setattr(config, "SHOPPING_LIST", "")
     monkeypatch.setattr(config, "MEDIA_PLAYER", "")
     rig = Rig(web=quiet_web())
     texts = [k.text for k in rig.sprites(LcarsKey)]
     assert "SHOPPING" not in texts and "PS5" not in texts
-    assert rig.key("CLIMATE").rect.height == 147
+    assert rig.key("CLIMATE").rect.height == 147      # alone in the lower block
 
 
 def test_shopping_list_ticks_off_even_when_read_only(monkeypatch):
@@ -502,3 +500,116 @@ def test_status_rows_for_shopping_and_ps5():
     rig.ha.set(config.MEDIA_PLAYER, "playing", media_title="Astro Bot")
     rig.tick()
     assert "1 NEEDED" in rig.texts() and "PLAYING ASTRO BOT" in rig.texts()
+
+
+NOW = 1792540000.0
+
+
+class FakeFeed:
+    def __init__(self, data, age=5):
+        self.data, self.updated = data, NOW - age
+
+    def age(self):
+        return NOW - self.updated
+
+
+PROM = {"status": "success", "data": {"alerts": [
+    {"labels": {"alertname": "TargetDown", "job": "brick9000-node", "severity": "warning"},
+     "state": "firing", "activeAt": "2026-10-20T14:44:00Z"},
+    {"labels": {"alertname": "Watchdog", "severity": "none"}, "state": "firing", "activeAt": "x"},
+    {"labels": {"alertname": "KubeProxyDown", "job": "kube-proxy", "severity": "critical"},
+     "state": "firing", "activeAt": "2026-10-17T18:00:42Z"},
+    {"labels": {"alertname": "CPUThrottlingHigh", "namespace": "chuck", "severity": "info"},
+     "state": "firing", "activeAt": "2026-10-20T21:04:00Z"},
+]}}
+WATCH = {"feeds": [
+    {"name": "scanner", "error": "", "state": {"alerts": [], "panel": {"headline": {
+        "word": "ALL CLEAR", "line": "Only the usual devices nearby.", "severity": 0}}}},
+    {"name": "wifi", "error": "", "state": {"alerts": [
+        {"kind": "deauth", "label": "Deauth flood", "at": NOW - 120, "detail": "AP 1"}],
+        "panel": {"headline": {"word": "HEADS UP", "line": "Evil twin (AP 1)", "severity": 3}}}},
+    {"name": "upnp", "error": "", "state": {"alerts": [], "panel": {"headline": {
+        "word": "ALL CLEAR", "line": "", "severity": 0}}}},
+]}
+WIGLE = {
+    "errors": {"items": [{"at": NOW - 3600, "event": "Upload total missing from the Pushgateway", "level": "warning"}]},
+    "history": {"runs": [{"at": NOW - 7200, "uploaded": 2, "bytes_uploaded": 1048576, "failed": 0},
+                         {"at": NOW - 200000, "uploaded": 9, "bytes_uploaded": 1, "failed": 3}]},
+    "last_run": {"last_run_timestamp_seconds": NOW - 3120, "last_success_timestamp_seconds": NOW - 3120},
+    "pi": {"host": "brick69", "online_now": False},
+    "schedule": {"failed_jobs_24h": 0, "next_run": NOW + 480, "running": False, "suspended": False},
+    "wigle": {"rank": 12345, "month_rank": 2000, "wifi": 50000, "bt": 20000, "locations": 300000,
+              "month_events": 1500, "uploads": [{"percent_done": 100.0}, {"percent_done": 40.0}]},
+}
+
+
+def feeds(**ages):
+    return {"prometheus": FakeFeed(PROM, ages.get("prometheus", 5)),
+            "overwatch": FakeFeed(WATCH, ages.get("overwatch", 5)),
+            "wigle": FakeFeed(WIGLE, ages.get("wigle", 5))}
+
+
+def test_navigation_top_bar_and_sidebar():
+    rig = Rig(web=quiet_web(), feeds=feeds(), now=lambda: NOW)
+    status, thermostat = rig.key("STATUS"), rig.key("THERMOSTAT")
+    assert status.rect.top == 56 and thermostat.rect.top == 56          # on the top bar
+    assert rig.key("RED ALERT").rect.top == 145                         # the big sidebar block, named for the condition
+    assert rig.key("WIGLE").rect.top == 211
+    lower = [rig.key(t) for t in ("SHOPPING", "PS5", "CLIMATE")]
+    assert lower[0].rect.top == 249 and lower[-1].rect.bottom == 396
+    rig.shot("17-status-nav")
+    rig.tap(thermostat)
+    assert rig.screen == "thermostat"
+    rig.tap(rig.key("STATUS"))
+    assert rig.screen == "status"
+
+
+def test_alerts_screen():
+    rig = Rig(web=quiet_web(), feeds=feeds(), now=lambda: NOW)
+    rig.tap(rig.key("RED ALERT"))
+    assert rig.screen == "alerts"
+    texts = rig.texts()
+    for expected in ("CONDITION RED", "INFRASTRUCTURE", "KUBE PROXY DOWN KUBE-PROXY", "TARGET DOWN BRICK9000-NODE",
+                     "CPU THROTTLING HIGH CHUCK", "OVERWATCH", "SCANNER", "ALL CLEAR", "WIFI", "HEADS UP",
+                     "WIFI: EVIL TWIN (AP 1)", "2 MIN AGO: DEAUTH FLOOD AP 1",
+                     "PROMETHEUS JUST NOW - OVERWATCH JUST NOW"):
+        assert expected in texts, expected
+    assert not [t for t in texts if "WATCHDOG" in t]
+    order = [t for t in texts if "DOWN" in t or "THROTTLING" in t]
+    assert order.index("KUBE PROXY DOWN KUBE-PROXY") < order.index("TARGET DOWN BRICK9000-NODE")  # worst first
+    rig.shot("18-alerts")
+
+
+def test_alerts_offline_and_all_clear():
+    rig = Rig(web=quiet_web(), feeds=feeds(prometheus=9999, overwatch=9999), now=lambda: NOW)
+    rig.tap(rig.key("ALERTS"))
+    assert "CONDITION UNKNOWN" in rig.texts() and "PROMETHEUS OFFLINE" in rig.texts()
+    assert "OVERWATCH OFFLINE" in rig.texts()
+    quiet = {"prometheus": FakeFeed({"data": {"alerts": []}}),
+             "overwatch": FakeFeed({"feeds": [WATCH["feeds"][0]]})}
+    rig = Rig(web=quiet_web(), feeds=quiet, now=lambda: NOW)
+    rig.tap(rig.key("ALERTS"))
+    assert "CONDITION GREEN" in rig.texts() and "ALL SYSTEMS NOMINAL" in rig.texts()
+    assert "NO ALERTS IN THE LAST 30 MIN" in rig.texts()
+    rig.shot("19-alerts-green")
+
+
+def test_wigle_screen():
+    rig = Rig(web=quiet_web(), feeds=feeds(wigle=90), now=lambda: NOW)
+    rig.tap(rig.key("WIGLE"))
+    assert rig.screen == "wigle"
+    texts = rig.texts()
+    for expected in ("12,345", "MONTH RANK 2,000", "50,000", "20,000", "300,000", "1,500 EVENTS",
+                     "52 MIN AGO", "IN 8 MIN", "BRICK69 AWAY", "2 FILES  1.0 MB", "1 FILE", "0",
+                     "UPLOAD TOTAL MISSING FROM THE PUSHGATEWAY", "WIGLE CONSOLE - 2 MIN AGO"):
+        assert expected in texts, expected
+    rig.shot("20-wigle")
+
+
+def test_wigle_offline():
+    rig = Rig(web=quiet_web(), feeds={"wigle": FakeFeed(None)}, now=lambda: NOW)
+    rig.feeds = None
+    rig.panel.feeds["wigle"].updated = None
+    rig.panel.feeds["wigle"].age = lambda: None
+    rig.tap(rig.key("WIGLE"))
+    assert "WIGLE CONSOLE NOT ANSWERING" in rig.texts() and "WIGLE CONSOLE OFFLINE" in rig.texts()

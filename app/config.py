@@ -72,6 +72,19 @@ WEATHER_POLL_SECONDS = _float("LCARS_WEATHER_POLL_SECONDS", 300)
 # Weather older than this is shown as stale.
 WEATHER_STALE_SECONDS = _float("LCARS_WEATHER_STALE_SECONDS", 3600)
 
+# The ALERTS screen: Prometheus' firing alerts (the homelab's infrastructure)
+# and overwatch's feeds (Bluetooth, Wi-Fi, UPnP). Empty turns either off; both
+# empty, no ALERTS button.
+PROMETHEUS_URL = _str("LCARS_PROMETHEUS_URL", "https://prometheus.brick.nozdormu.cloud").rstrip("/")
+OVERWATCH_URL = _str("LCARS_OVERWATCH_URL", "https://overwatch.brick.nozdormu.cloud").rstrip("/")
+ALERTS_POLL_SECONDS = _float("LCARS_ALERTS_POLL_SECONDS", 30)
+# The WIGLE screen: wigle-sync's runs and the WiGLE account, from
+# wigle-console's /api/status (empty: no WIGLE button). It takes ~10 s cold.
+WIGLE_URL = _str("LCARS_WIGLE_URL", "https://wigle.brick.nozdormu.cloud").rstrip("/")
+WIGLE_POLL_SECONDS = _float("LCARS_WIGLE_POLL_SECONDS", 120)
+# A feed older than this is shown as stale.
+FEED_STALE_SECONDS = _float("LCARS_FEED_STALE_SECONDS", 600)
+
 # The room's own sensor (datasources/room.py): an SHT3x on the Pi's I2C bus.
 # Off unless LCARS_ROOM_SENSOR=true. The Pi warms the air near it: OFFSET (°F)
 # corrects that, measured once against a thermometer.

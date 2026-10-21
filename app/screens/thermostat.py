@@ -39,7 +39,7 @@ class ScreenThermostat(PanelScreen):
     title = "ENVIRONMENTAL CONTROL"
 
     def build(self):
-        self.nav("CLIMATE", self.go_climate)
+        self.nav()
         left_width = WEATHER_X - LEFT - 20
 
         self.add(LcarsLabel(colours.ORANGE, (TOP + 10, LEFT), "INTERIOR", 1.5))

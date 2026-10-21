@@ -7,6 +7,7 @@ import os
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 import config  # noqa: E402
+from datasources.feeds import JsonFeed  # noqa: E402
 from datasources.homeassistant import HomeAssistant  # noqa: E402
 from datasources.room import Room  # noqa: E402
 from datasources.weather import Weather  # noqa: E402
@@ -29,6 +30,14 @@ def main():
     ha.start()
     weather = Weather(config.WEATHER_POINT, config.WEATHER_POLL_SECONDS, metrics)
     weather.start()
+    feeds = {}
+    for name, url, seconds in (
+            ("prometheus", config.PROMETHEUS_URL and config.PROMETHEUS_URL + "/api/v1/alerts", config.ALERTS_POLL_SECONDS),
+            ("overwatch", config.OVERWATCH_URL and config.OVERWATCH_URL + "/api/state", config.ALERTS_POLL_SECONDS),
+            ("wigle", config.WIGLE_URL and config.WIGLE_URL + "/api/status", config.WIGLE_POLL_SECONDS)):
+        if url:
+            feeds[name] = JsonFeed(name, url, seconds, metrics)
+            feeds[name].start()
     room = None
     if config.ROOM_SENSOR:
         room = Room(config.ROOM_I2C_BUS, config.ROOM_I2C_ADDRESS, config.ROOM_OFFSET, metrics=metrics)
@@ -39,7 +48,7 @@ def main():
                      config.LOCKOUT_SECONDS, config.MAX_LOCKOUT_SECONDS)
     night = Night(config.NIGHT, config.NIGHT_LEVEL, config.DAY_LEVEL, config.WAKE_SECONDS, Backlight(),
                   sun=lambda: sun_times(ha.attrs(config.SUN_ENTITY)))
-    panel = Panel(ha, lock, night, metrics, weather=weather, room=room)
+    panel = Panel(ha, lock, night, metrics, weather=weather, room=room, feeds=feeds)
     ui = UserInterface(ScreenStatus(panel), config.RESOLUTION, config.UI_PLACEMENT_MODE, config.FPS,
                        config.DEV_MODE, config.SOUND, fullscreen=config.FULLSCREEN, panel=panel,
                        colour_level=config.COLOUR_LEVEL)
