@@ -18,7 +18,7 @@ COL_LABEL, ROW_TOP, ROW_HEIGHT, VALUE_DROP, VALUE_SIZE = 470, TOP + 10, 50, 19, 
 NEWS_LINES, NEWS_SIZE, NEWS_HEIGHT, NEWS_WIDTH = 2, 1.1, 24, RIGHT - LEFT
 NEWS_TOP = BOTTOM - 25 - (NEWS_LINES - 1) * NEWS_HEIGHT
 # Under the average: the lock and its hint (not read-only).
-LOCK_TOP, LEFT_WIDTH = TOP + 150, COL_LABEL - LEFT - 20
+LOCK_TOP, LEFT_WIDTH = TOP + 182, COL_LABEL - LEFT - 20
 
 
 class ScreenStatus(PanelScreen):
@@ -29,10 +29,10 @@ class ScreenStatus(PanelScreen):
         self.nav()
 
         self.add(LcarsLabel(colours.ORANGE, (TOP + 10, LEFT), "HOUSE AVERAGE", 1.5))
-        self.big = self.add(LcarsLabel(colours.BEIGE, (TOP + 32, LEFT), "--", 5))
+        self.big = self.add(LcarsLabel(colours.BEIGE, (TOP + 32, LEFT), "--", 6.65))
         # Beside the number, why there's no average.
-        self.note = self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 65, LEFT + 70), "", 1.0,
-                                        max_width=LEFT_WIDTH - 70))
+        self.note = self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 102, LEFT + 75), "", 1.0,
+                                        max_width=LEFT_WIDTH - 75))
         # Whose headline, on the line above it: one slot per headline length
         # (the last is the bottom line, for OFFLINE with no headline).
         self.sources = [self.add(LcarsLabel(colours.GREY_BLUE, (NEWS_TOP - NEWS_HEIGHT * (1 - i), LEFT), "", 1.0,
