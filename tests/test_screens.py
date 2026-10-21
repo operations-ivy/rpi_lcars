@@ -610,21 +610,21 @@ def test_status_cycles_the_headlines():
     clock["t"] = start
     rig.tick()
     texts = rig.texts()
-    assert "THE GUARDIAN 1/3" in texts
+    assert "GUARDIAN HEADLINES 1/3" in texts
     assert any(t.startswith("First headline") for t in texts) and any(t.endswith("…") for t in texts)
     first = [l for l in rig.sprites(LcarsLabel) if l.text.startswith("First headline")][0]
     assert first.rect.left == 140 and first.rect.top >= 380             # along the bottom, full width
     rig.shot("19-status-news")
     clock["t"] = start + 15
     rig.tick()
-    assert "THE GUARDIAN 2/3" in rig.texts() and "Second headline" in rig.texts()
+    assert "GUARDIAN HEADLINES 2/3" in rig.texts() and "Second headline" in rig.texts()
     labels = {l.text: l for l in rig.sprites(LcarsLabel)}
     assert labels["Second headline"].rect.top == 410                     # one line: on the bottom line
-    assert labels["THE GUARDIAN 2/3"].rect.top == 386                    # just above it
+    assert labels["GUARDIAN HEADLINES 2/3"].rect.top == 386                    # just above it
     assert not any(t.startswith("First headline") for t in rig.texts())
     clock["t"] = start + 45                                            # round again
     rig.tick()
-    assert "THE GUARDIAN 1/3" in rig.texts()
+    assert "GUARDIAN HEADLINES 1/3" in rig.texts()
     news = [s for s in rig.sprites(LcarsLabel) if s.text.startswith("First")]
     pos = news[0].rect.center
     rig.tap(pos)                                                       # not a link
@@ -633,7 +633,7 @@ def test_status_cycles_the_headlines():
 
 def test_status_says_when_the_news_is_offline():
     rig = Rig(web=quiet_web(), feeds={"news": FakeFeed(None)}, now=lambda: NOW)
-    assert "THE GUARDIAN OFFLINE" in rig.texts()
+    assert "GUARDIAN HEADLINES OFFLINE" in rig.texts()
 
 
 def test_alerts_screen():

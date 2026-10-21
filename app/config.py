@@ -86,7 +86,7 @@ WIGLE_POLL_SECONDS = _float("LCARS_WIGLE_POLL_SECONDS", 120)
 # at a time (empty: no headlines). Titles only, never links. The Guardian's
 # US news section, newest first: its US front (/us/rss) lists features first.
 NEWS_URL = _str("LCARS_NEWS_URL", "https://www.theguardian.com/us-news/rss")
-NEWS_SOURCE = _str("LCARS_NEWS_SOURCE", "THE GUARDIAN").upper()
+NEWS_SOURCE = _str("LCARS_NEWS_SOURCE", "GUARDIAN HEADLINES").upper()
 NEWS_POLL_SECONDS = _float("LCARS_NEWS_POLL_SECONDS", 900)
 NEWS_COUNT = int(_float("LCARS_NEWS_COUNT", 3))
 NEWS_CYCLE_SECONDS = _float("LCARS_NEWS_CYCLE_SECONDS", 15)
