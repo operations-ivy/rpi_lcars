@@ -1,5 +1,5 @@
-"""The RSS feed: titles and first paragraphs only, the links dropped."""
-from datasources.news import NewsFeed, headlines, preview
+"""The RSS feed: titles only, the links and descriptions dropped."""
+from datasources.news import NewsFeed, headlines
 
 RSS = b"""<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"><channel><title>US news</title>
@@ -13,18 +13,11 @@ RSS = b"""<?xml version="1.0" encoding="UTF-8"?>
 </channel></rss>"""
 
 
-def test_titles_and_standfirsts_only():
+def test_titles_only():
     items = headlines(RSS)
-    assert [i["title"] for i in items] == ["\u2018Quoted\u2019: first story", "Second story", "Third story"]
-    assert items[0]["preview"] == "The standfirst & nothing more"       # not the article, not the link
-    assert items[1]["preview"] == "No paragraphs,"
-    assert items[2]["preview"] == ""
-    assert all(set(i) == {"title", "preview"} for i in items)            # no links kept
+    assert items == [{"title": "\u2018Quoted\u2019: first story"}, {"title": "Second story"},
+                     {"title": "Third story"}]                           # no links, no descriptions
     assert len(headlines(RSS, count=5)) == 4
-
-
-def test_preview_nested_markup():
-    assert preview("<p>A <strong>bold</strong> <a href='x'>claim</a></p><p>more</p>") == "A bold claim"
 
 
 class Response:

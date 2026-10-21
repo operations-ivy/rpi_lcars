@@ -582,10 +582,9 @@ def test_navigation_top_bar_and_sidebar():
     assert rig.screen == "status"
 
 
-NEWS = [{"title": "First headline, long enough that it has to wrap onto a second line of the panel and then keeps going well past the end of that second line too",
-         "preview": "The standfirst for the first story"},
-        {"title": "Second headline", "preview": "Second standfirst"},
-        {"title": "Third headline", "preview": ""}]
+NEWS = [{"title": "First headline, long enough that it has to wrap onto a second line of the panel and then "
+                   "keeps going well past the end of that second line too"},
+        {"title": "Second headline"}, {"title": "Third headline"}]
 
 
 def test_status_cycles_the_headlines():
@@ -596,17 +595,17 @@ def test_status_cycles_the_headlines():
     clock["t"] = start
     rig.tick()
     texts = rig.texts()
-    assert "THE GUARDIAN 1/3" in texts and "The standfirst for the first story" in texts
+    assert "THE GUARDIAN 1/3" in texts
     assert any(t.startswith("First headline") for t in texts) and any(t.endswith("…") for t in texts)
     rig.shot("19-status-news")
     clock["t"] = start + 15
     rig.tick()
     assert "THE GUARDIAN 2/3" in rig.texts() and "Second headline" in rig.texts()
-    assert "The standfirst for the first story" not in rig.texts()
+    assert not any(t.startswith("First headline") for t in rig.texts())
     clock["t"] = start + 45                                            # round again
     rig.tick()
     assert "THE GUARDIAN 1/3" in rig.texts()
-    news = [s for s in rig.sprites(LcarsLabel) if s.text == "Second standfirst" or s.text.startswith("First")]
+    news = [s for s in rig.sprites(LcarsLabel) if s.text.startswith("First")]
     pos = news[0].rect.center
     rig.tap(pos)                                                       # not a link
     assert rig.screen == "status"
