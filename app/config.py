@@ -89,7 +89,6 @@ FEED_STALE_SECONDS = _float("LCARS_FEED_STALE_SECONDS", 600)
 # Off unless LCARS_ROOM_SENSOR=true. The Pi warms the air near it: OFFSET (°F)
 # corrects that, measured once against a thermometer.
 ROOM_SENSOR = _bool("LCARS_ROOM_SENSOR", False)
-ROOM_NAME = _str("LCARS_ROOM_NAME", "ROOM").upper()
 ROOM_I2C_BUS = int(_float("LCARS_ROOM_I2C_BUS", 1))
 ROOM_I2C_ADDRESS = int(_str("LCARS_ROOM_I2C_ADDRESS", "0x44"), 0)
 ROOM_OFFSET = _float("LCARS_ROOM_OFFSET", 0)

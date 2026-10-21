@@ -144,7 +144,7 @@ def test_status_is_an_overview(alert_rig):
     rig = alert_rig
     assert rig.screen == "status"
     texts = rig.texts()
-    for expected in ("INTERIOR", "68.5°F", "HUMIDITY 41%", "68.5°F HEATING", "70°F", "73.4°F CLOUDY",
+    for expected in ("HOUSE AVERAGE", "UPSTAIRS", "NO SENSOR", "DOWNSTAIRS", "68.5°F", "HUMIDITY 41%", "68.5°F HEATING", "70°F", "73.4°F CLOUDY",
                      "ONLINE", "SETS 18:24", "--", "OFFLINE",
                      "WEATHER ALERT: FLOOD WATCH", "HOME ASSISTANT LINK: NOMINAL"):
         assert expected in texts, expected
@@ -386,21 +386,32 @@ def test_colour_level_darkens_the_frame():
     assert all(abs(dv - round(bv * 204 / 255)) <= 1 for bv, dv in zip(b, d)), (b, d)
 
 
-def test_status_leads_with_the_room():
+def test_status_leads_with_the_house_average():
     from datasources.room import Room
     from test_room import FakeSHT, reading
-    assert "INTERIOR" in Rig().texts()                             # no sensor: the thermostat's
+    texts = Rig().texts()                                          # no sensor: no average
+    assert "HOUSE AVERAGE" in texts and "NO SENSOR" in texts and "68.5°F" in texts
     dev = FakeSHT(reading(22.0, 45.0))
     room = Room(device=dev)
     room.poll()
     rig = Rig(room=room)
     texts = rig.texts()
-    assert "ROOM" in texts and "71.6°F" in texts and "HUMIDITY 45%" in texts
+    assert "UPSTAIRS" in texts and "71.6°F" in texts and "HUMIDITY 45%" in texts
+    assert "DOWNSTAIRS" in texts and "68.5°F" in texts and "HUMIDITY 41%" in texts
+    average = f"{(room.temperature + 68.5) / 2:.1f}°F"
+    assert average in texts                                        # about 70.0°F
     assert "68.5°F HEATING" in texts                               # the thermostat, as a row
     rig.shot("12-status-room")
-    room.updated -= 600                                           # stale: offline
+    room.updated -= 600                                           # stale: offline, no average
     rig.tick()
-    assert "SENSOR OFFLINE" in rig.texts()
+    texts = rig.texts()
+    assert "SENSOR OFFLINE" in texts and average not in texts
+
+
+def test_top_bar_gap_is_black_all_the_way_down():
+    rig = Rig(web=quiet_web())
+    for y in range(56, 97):
+        assert rig.ui.screenSurface.get_at((561, y))[:3] == (0, 0, 0), y
 
 
 def png(colour=(255, 153, 0), size=(64, 64)):

@@ -91,6 +91,11 @@ class PanelScreen(LcarsScreen):
             pos, size = TOP_BAR[name]
             self.nav_keys[name] = self.add(LcarsKey(colour, pos, size, text, None if here == name else handler,
                                                 align="corner"), layer=2)
+        # The background splits only the bar's upper row there: black the
+        # whole gap between the two.
+        (top, left), (width, height) = TOP_BAR["status"]
+        gap = TOP_BAR["thermostat"][0][1] - (left + width)
+        self.add(LcarsBlock(colours.BLACK, (top, left + width), (gap, height)), layer=2)
         blocks = self.screens(action)
         slots = [SIDEBAR["upper"], SIDEBAR["middle"]][:len(blocks)]
         rest = len(blocks) - len(slots)
