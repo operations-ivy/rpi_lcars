@@ -146,7 +146,7 @@ def test_status_is_an_overview(alert_rig):
     texts = rig.texts()
     for expected in ("HOUSE AVERAGE", "NO UPSTAIRS SENSOR", "73.4°F CLOUDY",
                      "ONLINE", "SETS 18:24", "--",
-                     "WEATHER ALERT: FLOOD WATCH", "HOME ASSISTANT LINK: NOMINAL"):
+                     "WEATHER ALERTS", "FLOOD WATCH", "HOME ASSISTANT LINK: NOMINAL"):
         assert expected in texts, expected
     rig.shot("1-status")
 
@@ -155,9 +155,10 @@ def test_no_alert_shows_the_lock(rig):
     assert "CONTROLS SECURED" in rig.texts()
 
 
-def test_an_alert_outranks_the_lock_line(alert_rig):
-    assert "WEATHER ALERT: FLOOD WATCH" in alert_rig.texts()
-    assert "CONTROLS SECURED" in alert_rig.texts()                    # the lock, as the hint
+def test_an_alert_sits_on_the_right_beside_the_lock(alert_rig):
+    alert = [s for s in alert_rig.sprites(LcarsLabel) if s.text == "FLOOD WATCH"][0]
+    assert alert.rect.left == 470                                     # the right column
+    assert "CONTROLS SECURED" in alert_rig.texts()
 
 
 def to_keypad(rig):
@@ -346,7 +347,8 @@ def test_weather_on_a_backup_says_alerts_are_unknown():
     web = FakeWeb()
     web.down.add("api.weather.gov")
     rig = Rig(web=web)
-    assert rig.panel.alert_line() == ("WEATHER ALERTS UNAVAILABLE", "unknown")   # only the NWS has alerts
+    assert rig.panel.alert_line() == ("UNAVAILABLE", "unknown")   # only the NWS has alerts
+    assert "UNAVAILABLE" in rig.texts()
     assert any(t.endswith("CLOUDY") for t in rig.texts())         # the backup's weather, on STATUS
 
 
@@ -366,7 +368,7 @@ def test_read_only_climate_is_a_dead_preview(monkeypatch):
     rig.tick()
     texts = rig.texts()
     assert not any("MONITOR ONLY" in t or "CONTROLS" in t for t in texts)   # no lock talk when read-only
-    assert "WEATHER ALERT: FLOOD WATCH" in texts
+    assert "FLOOD WATCH" in texts
     rig.shot("11-status-read-only")
     rig.tap(rig.key("THERMOSTAT"))
     assert rig.screen == "thermostat"                           # no keypad: nothing to unlock
@@ -444,7 +446,9 @@ def test_clock_network_and_sun_on_status():
     texts = rig.texts()
     assert datetime.now().strftime("%H:%M") in texts
     assert "BRICK 1982" not in texts
-    assert any(t.startswith("STARDATE ") and ":" not in t for t in texts)
+    stardate = [l for l in rig.sprites(LcarsLabel) if l.text.startswith("STARDATE ")]
+    assert stardate and ":" not in stardate[0].text
+    assert stardate[0].rect.right == 106 and stardate[0].rect.top == 46   # under the clock
     assert "ONLINE" in texts and "SETS 18:24" in texts
     rig.ha.set(config.WAN_ENTITY, "off")
     rig.ha.set(config.SUN_ENTITY, "below_horizon", **rig.ha.attrs(config.SUN_ENTITY))

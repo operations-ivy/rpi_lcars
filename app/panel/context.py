@@ -145,11 +145,11 @@ class Panel:
         """(text, colour kind) for the weather alerts: "alert", "ok" or "unknown"."""
         alerts = self.weather.alerts() if self.weather else None
         if alerts is None:
-            return "WEATHER ALERTS UNAVAILABLE", "unknown"
+            return "UNAVAILABLE", "unknown"
         if not alerts:
-            return "NO ACTIVE WEATHER ALERTS", "ok"
-        more = f" +{len(alerts) - 1} MORE" if len(alerts) > 1 else ""
-        return f"WEATHER ALERT: {alerts[0]['event']}{more}", "alert"
+            return "NONE ACTIVE", "ok"
+        more = f" +{len(alerts) - 1}" if len(alerts) > 1 else ""
+        return f"{alerts[0]['event']}{more}", "alert"
 
     def link(self):
         """(ok, text) for the Home Assistant link line."""

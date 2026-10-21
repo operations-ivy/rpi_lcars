@@ -1,7 +1,7 @@
-"""The frame every panel screen shares: the LCARS background, a clock in the
-top corner, a title in the top bar, STATUS and THERMOSTAT on the top bar's
-blocks, the other screens down the sidebar, the stardate and the Home
-Assistant link along the bottom."""
+"""The frame every panel screen shares: the LCARS background, a clock and the
+stardate under it in the top corner, a title in the top bar, STATUS and
+THERMOSTAT on the top bar's blocks, the other screens down the sidebar, the
+Home Assistant link along the bottom."""
 from datetime import datetime
 
 from datasources.network import get_ip_addresses
@@ -46,7 +46,7 @@ class PanelScreen(LcarsScreen):
         self.add(LcarsLabel(colours.ORANGE, (0, 135), self.title, 2))
         # The first address only: the bar fits one.
         self.add(LcarsLabel(colours.BLACK, (444, 470), next(iter(get_ip_addresses()), "")))
-        self.stardate = self.add(LcarsLabel(colours.BLUE, (BOTTOM - 25, LEFT), "", 1.2))
+        self.stardate = self.add(LcarsLabel(colours.BLACK, (46, 106), "", 0.7, "right"))
         self.link = self.add(LcarsLabel(colours.BLUE, (BOTTOM - 25, RIGHT), "", 1.2, "right"))
         self.build()
         self.refresh()

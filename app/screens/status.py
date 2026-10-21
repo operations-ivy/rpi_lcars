@@ -1,17 +1,18 @@
 """The resting screen: read-only, open to anyone. The house average leads
 (upstairs, downstairs and the thermostat are on the thermostat screen) over a
 headline (the news feed's top few in turn; not a link); on the right, outside,
-the internet and the sun, each a label over its value;
-along the bottom, the weather alert or the lock. The detail is a touch away."""
+the internet, the sun and the weather alerts, each a label over its value;
+under the headline, the lock (not on a read-only panel). The detail is a
+touch away."""
 from panel import lock as L
 from panel.thermostat import fmt_temp
 from screens.base import LEFT, RIGHT, TOP, PanelScreen
 from ui import colours
 from ui.widgets.panel_widgets import LcarsLabel, wrap
 
-ROWS = ("OUTSIDE", "NETWORK", "SUN")
+ROWS = ("OUTSIDE", "NETWORK", "SUN", "WEATHER ALERTS")
 # The right column: each row a small label with its value under it.
-COL_LABEL, ROW_TOP, ROW_HEIGHT, VALUE_DROP = 470, TOP + 12, 72, 20
+COL_LABEL, ROW_TOP, ROW_HEIGHT, VALUE_DROP = 470, TOP + 12, 66, 20
 # The headline under the average: at most two lines.
 NEWS_TOP, NEWS_WIDTH, NEWS_LINES, NEWS_SIZE, NEWS_HEIGHT = TOP + 170, COL_LABEL - LEFT - 30, 2, 1.1, 24
 
@@ -71,11 +72,13 @@ class ScreenStatus(PanelScreen):
         self.values["NETWORK"].set(network[0], colours.BLUE if network[1] else colours.RED)
         self.values["SUN"].set(p.sun_line() or "--")
         alert, kind = p.alert_line()
-        alert_colour = {"alert": colours.RED, "ok": colours.GREY_BLUE, "unknown": colours.ORANGE}[kind]
+        self.values["WEATHER ALERTS"].set(
+            alert, {"alert": colours.RED, "ok": colours.BLUE, "unknown": colours.ORANGE}[kind])
+
         lock = p.lock
-        if p.read_only:
-            self.lock_line.set(alert, alert_colour if kind == "alert" else colours.ORANGE)
-            self.hint.set("")  # the THERMOSTAT screen says PREVIEW; nothing to add here
+        if p.read_only:  # the THERMOSTAT screen says PREVIEW; nothing to add here
+            self.lock_line.set("")
+            self.hint.set("")
             return
         if lock.remote == L.HARD_LOCKED:
             line, hint, colour = "CONTROLS LOCKED BY HOME ASSISTANT", "UNLOCK FROM HOME ASSISTANT", colours.RED
@@ -83,11 +86,6 @@ class ScreenStatus(PanelScreen):
             line, hint, colour = "CONTROLS OPEN", "TOUCH THERMOSTAT TO ADJUST", colours.GOLD
         else:
             line, hint, colour = "CONTROLS SECURED", "TOUCH THERMOSTAT, THEN UNLOCK, TO ADJUST", colours.ORANGE
-        if kind == "alert":
-            # An alert outranks the lock line; the lock moves to the hint.
-            self.lock_line.set(alert, colours.RED)
-            self.hint.set(line)
-            return
         self.lock_line.set(line, colour)
         self.hint.set(hint)
 
