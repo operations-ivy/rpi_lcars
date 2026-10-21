@@ -83,8 +83,9 @@ ALERTS_POLL_SECONDS = _float("LCARS_ALERTS_POLL_SECONDS", 30)
 WIGLE_URL = _str("LCARS_WIGLE_URL", "https://wigle.brick.nozdormu.cloud").rstrip("/")
 WIGLE_POLL_SECONDS = _float("LCARS_WIGLE_POLL_SECONDS", 120)
 # Headlines under the house average on STATUS: an RSS feed's top items, one
-# at a time (empty: no headlines). Titles only, never links.
-NEWS_URL = _str("LCARS_NEWS_URL", "https://www.theguardian.com/us/rss")
+# at a time (empty: no headlines). Titles only, never links. The Guardian's
+# US news section, newest first: its US front (/us/rss) lists features first.
+NEWS_URL = _str("LCARS_NEWS_URL", "https://www.theguardian.com/us-news/rss")
 NEWS_SOURCE = _str("LCARS_NEWS_SOURCE", "THE GUARDIAN").upper()
 NEWS_POLL_SECONDS = _float("LCARS_NEWS_POLL_SECONDS", 900)
 NEWS_COUNT = int(_float("LCARS_NEWS_COUNT", 3))

@@ -1,4 +1,4 @@
-"""Headlines for the status screen: an RSS feed (the Guardian's US edition by
+"""Headlines for the status screen: an RSS feed (the Guardian's US news by
 default), polled like the homelab's feeds. Only each item's title is kept:
 no links, no descriptions, never the article."""
 import re
