@@ -409,7 +409,7 @@ def test_house_average_on_status_floors_on_thermostat():
     texts = rig.texts()
     assert "HOUSE AVERAGE" in texts and average in texts
     assert "UPSTAIRS" not in texts and "71.6°F" not in texts       # the floors are on the thermostat screen
-    assert not {"THERMOSTAT", "TARGET", "PS5"} & set(texts)           # those rows are gone
+    assert not {"THERMOSTAT", "TARGET", "PS5", "SHOPPING"} & set(texts)   # those rows are gone
     rig.shot("12-status-room")
     rig.tap(rig.key("THERMOSTAT"))
     texts = rig.texts()
@@ -515,12 +515,14 @@ def test_ps5_screen():
     rig.tick()                                             # doesn't crash
 
 
-def test_status_row_for_shopping_but_not_the_ps5():
+def test_status_leaves_shopping_and_the_ps5_to_their_screens():
     rig = Rig(web=quiet_web())
     rig.ha._items = [{"summary": "Milk", "uid": "a", "status": "needs_action"}]
     rig.ha.set(config.MEDIA_PLAYER, "playing", media_title="Astro Bot")
     rig.tick()
-    assert "1 NEEDED" in rig.texts() and "PLAYING ASTRO BOT" not in rig.texts()   # the PS5 has its own screen
+    texts = rig.texts()
+    assert "1 NEEDED" not in texts and "PLAYING ASTRO BOT" not in texts
+    assert rig.key("SHOPPING") and rig.key("PS5")
 
 
 NOW = 1792540000.0

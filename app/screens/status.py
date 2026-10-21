@@ -1,7 +1,7 @@
 """The resting screen: read-only, open to anyone. The house average leads
 (upstairs, downstairs and the thermostat are on the thermostat screen) over a
 headline (the news feed's top few in turn; not a link); on the right, outside,
-the internet, the sun and the shopping list, each a label over its value;
+the internet and the sun, each a label over its value;
 along the bottom, the weather alert or the lock. The detail is a touch away."""
 from panel import lock as L
 from panel.thermostat import fmt_temp
@@ -9,9 +9,9 @@ from screens.base import LEFT, RIGHT, TOP, PanelScreen
 from ui import colours
 from ui.widgets.panel_widgets import LcarsLabel, wrap
 
-ROWS = ("OUTSIDE", "NETWORK", "SUN", "SHOPPING")
+ROWS = ("OUTSIDE", "NETWORK", "SUN")
 # The right column: each row a small label with its value under it.
-COL_LABEL, ROW_TOP, ROW_HEIGHT, VALUE_DROP = 470, TOP + 12, 56, 20
+COL_LABEL, ROW_TOP, ROW_HEIGHT, VALUE_DROP = 470, TOP + 12, 72, 20
 # The headline under the average: at most two lines.
 NEWS_TOP, NEWS_WIDTH, NEWS_LINES, NEWS_SIZE, NEWS_HEIGHT = TOP + 170, COL_LABEL - LEFT - 30, 2, 1.1, 24
 
@@ -33,7 +33,7 @@ class ScreenStatus(PanelScreen):
                      for i in range(NEWS_LINES)]
 
         self.values = {}
-        for i, row in enumerate(self.rows()):
+        for i, row in enumerate(ROWS):
             top = ROW_TOP + i * ROW_HEIGHT
             self.add(LcarsLabel(colours.PURPLE, (top, COL_LABEL), row, 1.0))
             self.values[row] = self.add(LcarsLabel(colours.BLUE, (top + VALUE_DROP, COL_LABEL), "--", 1.5,
@@ -55,11 +55,6 @@ class ScreenStatus(PanelScreen):
         for label, line in zip(self.news, wrap(title, NEWS_SIZE, NEWS_WIDTH, NEWS_LINES) + [""] * NEWS_LINES):
             label.set(line)
 
-    def rows(self):
-        cfg = self.panel.cfg
-        skip = {"SHOPPING": not cfg.SHOPPING_LIST}
-        return [r for r in ROWS if not skip.get(r)]
-
     def refresh(self):
         p = self.panel
         unit = p.ha.unit
@@ -75,11 +70,6 @@ class ScreenStatus(PanelScreen):
         network = p.network() or ("--", True)
         self.values["NETWORK"].set(network[0], colours.BLUE if network[1] else colours.RED)
         self.values["SUN"].set(p.sun_line() or "--")
-        if "SHOPPING" in self.values:
-            items = p.shopping()
-            needed = None if items is None else sum(1 for i in items if i.get("status") != "completed")
-            self.values["SHOPPING"].set("--" if needed is None else f"{needed} NEEDED" if needed else "NOTHING NEEDED")
-
         alert, kind = p.alert_line()
         alert_colour = {"alert": colours.RED, "ok": colours.GREY_BLUE, "unknown": colours.ORANGE}[kind]
         lock = p.lock
