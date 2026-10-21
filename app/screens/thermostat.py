@@ -1,4 +1,5 @@
-"""The thermostat and the weather side by side: inside, what the ecobee is
+"""The thermostat and the weather side by side: inside (the house average,
+upstairs from the panel's sensor, downstairs from the ecobee), what it is
 doing, its setpoints and the lock on the left; outside, alerts and the next
 four forecast periods (datasources/weather.py: the National Weather Service,
 or a backup when it's down) on the right. Read-only, open to anyone; changes
@@ -11,6 +12,9 @@ from ui.widgets.panel_widgets import LcarsLabel
 
 SOURCE_LABELS = {"nws": "NWS", "open-meteo": "OPEN-METEO", "met-norway": "MET NORWAY"}
 WEATHER_X = 470
+# Upstairs and downstairs, beside the average.
+FLOORS = ("UPSTAIRS", "DOWNSTAIRS")
+FLOOR_LABEL, FLOOR_VALUE = LEFT + 160, LEFT + 250
 # The thermostat's rows, under the inside temperature.
 ROWS = ("MODE", "STATUS", "TARGET", "HUMIDITY", "LIMITS")
 ROW_TOP, ROW_HEIGHT, COL_VALUE = TOP + 118, 27, LEFT + 115
@@ -42,9 +46,14 @@ class ScreenThermostat(PanelScreen):
         self.nav()
         left_width = WEATHER_X - LEFT - 20
 
-        self.add(LcarsLabel(colours.ORANGE, (TOP + 10, LEFT), "INTERIOR", 1.5))
+        self.add(LcarsLabel(colours.ORANGE, (TOP + 10, LEFT), "HOUSE AVERAGE", 1.5))
         self.inside = self.add(LcarsLabel(colours.BEIGE, (TOP + 32, LEFT), "--", 4))
         self.values = {}
+        for i, floor in enumerate(FLOORS):
+            top = TOP + 45 + i * 32
+            self.add(LcarsLabel(colours.PURPLE, (top + 3, FLOOR_LABEL), floor, 1.1))
+            self.values[floor] = self.add(LcarsLabel(colours.BEIGE, (top, FLOOR_VALUE), "--", 1.4,
+                                                     max_width=WEATHER_X - FLOOR_VALUE - 20))
         for i, row in enumerate(ROWS):
             top = ROW_TOP + i * ROW_HEIGHT
             self.add(LcarsLabel(colours.PURPLE, (top, LEFT), row, 1.1))
@@ -93,7 +102,12 @@ class ScreenThermostat(PanelScreen):
     def refresh_thermostat(self):
         p = self.panel
         attrs, unit = p.thermostat, p.ha.unit
-        self.inside.set(fmt_temp(attrs.get("current_temperature"), unit))
+        up, down, average = p.house()
+        self.inside.set("--" if average is None else f"{average:.1f}{unit}",
+                        colours.GREY_BLUE if average is None else colours.BEIGE)
+        self.values["UPSTAIRS"].set("--" if up is None else f"{up:.1f}{unit}",
+                                    colours.GREY_BLUE if up is None else colours.BEIGE)
+        self.values["DOWNSTAIRS"].set(fmt_temp(down, unit), colours.GREY_BLUE if down is None else colours.BEIGE)
         mode = p.hvac_mode
         self.values["MODE"].set(MODE_LABELS.get(mode, (mode or "--").upper()))
         action = attrs.get("hvac_action")
@@ -102,7 +116,9 @@ class ScreenThermostat(PanelScreen):
         keys = targets(attrs)
         self.values["TARGET"].set(" - ".join(fmt_temp(attrs.get(k), unit) for k in keys) or "--")
         humidity = attrs.get("current_humidity")
-        self.values["HUMIDITY"].set("--" if humidity is None else f"{humidity:.0f}%")
+        room = p.room_reading()
+        downstairs = "--" if humidity is None else f"{humidity:.0f}%"
+        self.values["HUMIDITY"].set(downstairs if room is None else f"UP {room[1]:.0f}%  DOWN {downstairs}")
         lo, hi = p.guardrails()
         self.values["LIMITS"].set(f"{lo:.0f}-{hi:.0f}{unit}")
 

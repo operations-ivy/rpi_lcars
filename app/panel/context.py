@@ -111,6 +111,22 @@ class Panel:
             return None
         return self.room.temperature, self.room.humidity
 
+    def house(self):
+        """(upstairs, downstairs, average) in Home Assistant's unit, each None
+        when missing: upstairs is the room sensor (it reads °F), downstairs
+        the ecobee. No average from one floor alone."""
+        room = self.room_reading()
+        up = None if room is None else (room[0] - 32) * 5 / 9 if self.ha.unit == "°C" else room[0]
+        down = self.thermostat.get("current_temperature")
+        return up, down, None if up is None or down is None else (up + down) / 2
+
+    def house_note(self):
+        """Why there's no average, or ""."""
+        up, down, _ = self.house()
+        if up is None:
+            return "NO UPSTAIRS SENSOR" if self.room is None else "UPSTAIRS SENSOR OFFLINE"
+        return "NO THERMOSTAT READING" if down is None else ""
+
     def weather_stale(self):
         age = self.weather.age() if self.weather else None
         return age is None or age > self.cfg.WEATHER_STALE_SECONDS

@@ -1,6 +1,5 @@
-"""The resting screen: read-only, open to anyone. The house average leads,
-over upstairs (the panel's own sensor, in the bedroom) and downstairs (the
-ecobee), then a row each for the thermostat, outside, the internet, the sun,
+"""The resting screen: read-only, open to anyone. The house average leads
+(upstairs and downstairs are on the thermostat screen), then a row each for the thermostat, outside, the internet, the sun,
 the shopping list and the PS5, and the weather alert or the lock. The detail
 is a touch away."""
 from panel import lock as L
@@ -11,8 +10,6 @@ from ui.widgets.panel_widgets import LcarsLabel
 
 ROWS = ("THERMOSTAT", "TARGET", "OUTSIDE", "NETWORK", "SUN", "SHOPPING", "PS5")
 COL_LABEL, COL_VALUE, ROW_HEIGHT = 450, 585, 32
-# Upstairs and downstairs, side by side under the average.
-FLOORS = (("upstairs", "UPSTAIRS", LEFT), ("downstairs", "DOWNSTAIRS", LEFT + 150))
 PS5_STATES = {"playing": "PLAYING", "paused": "PAUSED", "on": "ONLINE", "idle": "IDLE",
               "standby": "STANDBY", "off": "OFFLINE"}
 
@@ -25,12 +22,8 @@ class ScreenStatus(PanelScreen):
         self.nav()
 
         self.add(LcarsLabel(colours.ORANGE, (TOP + 10, LEFT), "HOUSE AVERAGE", 1.5))
-        self.big = self.add(LcarsLabel(colours.BEIGE, (TOP + 32, LEFT), "--", 4.5))
-        self.floors = {}
-        for key, label, x in FLOORS:
-            self.add(LcarsLabel(colours.ORANGE, (TOP + 135, x), label, 1.2))
-            self.floors[key] = (self.add(LcarsLabel(colours.BEIGE, (TOP + 155, x), "--", 2.5)),
-                                self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 207, x), "", 1.0)))
+        self.big = self.add(LcarsLabel(colours.BEIGE, (TOP + 35, LEFT), "--", 6))
+        self.note = self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 160, LEFT), "", 1.2, max_width=COL_LABEL - LEFT - 10))
 
         self.values = {}
         for i, row in enumerate(self.rows()):
@@ -52,19 +45,10 @@ class ScreenStatus(PanelScreen):
         attrs, unit = p.thermostat, p.ha.unit
         inside = fmt_temp(attrs.get("current_temperature"), unit)
 
-        downstairs = attrs.get("current_temperature")
-        humidity = attrs.get("current_humidity")
-        self.floor("downstairs", inside, "" if humidity is None else f"HUMIDITY {humidity:.0f}%")
-        room = p.room_reading()
-        upstairs = None if room is None else to_unit(room[0], unit)
-        if room is None:
-            self.floor("upstairs", "--", "NO SENSOR" if p.room is None else "SENSOR OFFLINE")
-        else:
-            self.floor("upstairs", f"{upstairs:.1f}{unit}", f"HUMIDITY {room[1]:.0f}%")
-        if upstairs is None or downstairs is None:
-            self.big.set("--", colours.GREY_BLUE)
-        else:
-            self.big.set(f"{(upstairs + downstairs) / 2:.1f}{unit}", colours.BEIGE)
+        average = p.house()[2]
+        self.big.set("--" if average is None else f"{average:.1f}{unit}",
+                     colours.GREY_BLUE if average is None else colours.BEIGE)
+        self.note.set(p.house_note())
 
         action = attrs.get("hvac_action")
         self.values["THERMOSTAT"].set(f"{inside} {ACTION_LABELS.get(action, (action or '').upper())}".strip(),
@@ -109,12 +93,3 @@ class ScreenStatus(PanelScreen):
         self.lock_line.set(line, colour)
         self.hint.set(hint)
 
-    def floor(self, key, value, note):
-        big, small = self.floors[key]
-        big.set(value, colours.GREY_BLUE if value == "--" else colours.BEIGE)
-        small.set(note)
-
-
-def to_unit(fahrenheit, unit):
-    """The room sensor reads °F; Home Assistant may want °C."""
-    return (fahrenheit - 32) * 5 / 9 if unit == "°C" else fahrenheit

@@ -144,7 +144,7 @@ def test_status_is_an_overview(alert_rig):
     rig = alert_rig
     assert rig.screen == "status"
     texts = rig.texts()
-    for expected in ("HOUSE AVERAGE", "UPSTAIRS", "NO SENSOR", "DOWNSTAIRS", "68.5°F", "HUMIDITY 41%", "68.5°F HEATING", "70°F", "73.4°F CLOUDY",
+    for expected in ("HOUSE AVERAGE", "NO UPSTAIRS SENSOR", "68.5°F HEATING", "70°F", "73.4°F CLOUDY",
                      "ONLINE", "SETS 18:24", "--", "OFFLINE",
                      "WEATHER ALERT: FLOOD WATCH", "HOME ASSISTANT LINK: NOMINAL"):
         assert expected in texts, expected
@@ -386,26 +386,33 @@ def test_colour_level_darkens_the_frame():
     assert all(abs(dv - round(bv * 204 / 255)) <= 1 for bv, dv in zip(b, d)), (b, d)
 
 
-def test_status_leads_with_the_house_average():
+def test_house_average_on_status_floors_on_thermostat():
     from datasources.room import Room
     from test_room import FakeSHT, reading
     texts = Rig().texts()                                          # no sensor: no average
-    assert "HOUSE AVERAGE" in texts and "NO SENSOR" in texts and "68.5°F" in texts
+    assert "HOUSE AVERAGE" in texts and "NO UPSTAIRS SENSOR" in texts and "--" in texts
     dev = FakeSHT(reading(22.0, 45.0))
     room = Room(device=dev)
     room.poll()
     rig = Rig(room=room)
+    average = f"{(room.temperature + 68.5) / 2:.1f}°F"            # about 70.0°F
     texts = rig.texts()
-    assert "UPSTAIRS" in texts and "71.6°F" in texts and "HUMIDITY 45%" in texts
-    assert "DOWNSTAIRS" in texts and "68.5°F" in texts and "HUMIDITY 41%" in texts
-    average = f"{(room.temperature + 68.5) / 2:.1f}°F"
-    assert average in texts                                        # about 70.0°F
+    assert "HOUSE AVERAGE" in texts and average in texts
+    assert "UPSTAIRS" not in texts and "71.6°F" not in texts       # the floors are on the thermostat screen
     assert "68.5°F HEATING" in texts                               # the thermostat, as a row
     rig.shot("12-status-room")
+    rig.tap(rig.key("THERMOSTAT"))
+    texts = rig.texts()
+    assert "HOUSE AVERAGE" in texts and average in texts
+    assert "UPSTAIRS" in texts and "71.6°F" in texts and "DOWNSTAIRS" in texts and "68.5°F" in texts
+    assert "UP 45%  DOWN 41%" in texts
+    rig.shot("12-thermostat-room")
     room.updated -= 600                                           # stale: offline, no average
     rig.tick()
     texts = rig.texts()
-    assert "SENSOR OFFLINE" in texts and average not in texts
+    assert average not in texts and "71.6°F" not in texts and "68.5°F" in texts
+    rig.tap(rig.key("STATUS"))
+    assert "UPSTAIRS SENSOR OFFLINE" in rig.texts()
 
 
 def test_top_bar_gap_is_black_all_the_way_down():
