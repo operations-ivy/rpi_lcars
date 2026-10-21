@@ -61,8 +61,8 @@ class PanelScreen(LcarsScreen):
 
     def screens(self, action=None):
         """The sidebar's blocks, in order: (name, colour, text, handler). The
-        last is the screen's own action (climate's SECURE), or CLIMATE
-        unless the panel is read-only."""
+        last is the screen's own action (climate's SECURE), or CLIMATE (a
+        preview with every control disabled when the panel is read-only)."""
         cfg = self.panel.cfg
         out = []
         if cfg.PROMETHEUS_URL or cfg.OVERWATCH_URL:
@@ -76,7 +76,7 @@ class PanelScreen(LcarsScreen):
         if action:
             text, handler, colour = action
             out.append(("action", colour, text, handler))
-        elif not self.panel.read_only:
+        else:
             out.append(("climate", colours.PEACH, "CLIMATE", self.go_climate))
         return out
 
@@ -175,13 +175,10 @@ class PanelScreen(LcarsScreen):
         self.loadScreen(ScreenWigle(self.panel))
 
     def go_climate(self, *_):
-        """Climate control if the lock allows it, else the keypad; nothing
-        when read-only."""
-        if self.panel.read_only:
-            self.go_status()
-            return
+        """Climate control if the lock allows it, else the keypad; read-only,
+        the climate screen as a preview (no lock: nothing on it works)."""
         self.leave()
-        if self.panel.lock.can_change:
+        if self.panel.read_only or self.panel.lock.can_change:
             from screens.climate import ScreenClimate
             self.loadScreen(ScreenClimate(self.panel))
         else:

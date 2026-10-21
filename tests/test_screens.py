@@ -364,7 +364,7 @@ def test_all_weather_down_is_graceful():
     rig.shot("10-weather-offline")
 
 
-def test_read_only_never_opens_climate(monkeypatch):
+def test_read_only_climate_is_a_dead_preview(monkeypatch):
     monkeypatch.setattr(config, "READ_ONLY", True)
     rig = Rig()
     rig.ha.set(config.LOCK_ENTITY, "unlocked")  # even Home Assistant's override
@@ -372,11 +372,26 @@ def test_read_only_never_opens_climate(monkeypatch):
     texts = rig.texts()
     assert "THERMOSTAT MONITOR ONLY - CONTROLS DISABLED" in texts
     assert "WEATHER ALERT: FLOOD WATCH" in texts
-    keys = [k.text for k in rig.sprites(LcarsKey)]
-    assert "CLIMATE" not in keys and "MONITOR ONLY" not in keys   # no dead block either
+    rig.shot("11-status-read-only")
+    rig.tap(rig.key("CLIMATE"))
+    assert rig.screen == "climate"                              # no keypad: nothing to unlock
+    texts = rig.texts()
+    assert "CLIMATE CONTROL - PREVIEW" in texts and "PREVIEW ONLY" in texts and "CONTROLS DISABLED" in texts
+    assert "HEAT - HEATING" in texts
+    assert "SECURE" not in [k.text for k in rig.sprites(LcarsKey)]
+    modes = [k for k in rig.sprites(LcarsKey) if k.text in ("HEAT", "COOL", "AUTO", "OFF")]
+    arrows = rig.sprites(LcarsArrow)
+    assert len(modes) == 4 and arrows
+    assert not any(w.enabled for w in modes + arrows)
+    rig.shot("11-climate-preview")
+    for w in modes + arrows:                                    # tap every one, then wait past the send delay
+        rig.tap(w)
+    rig.clock.t += 60
+    rig.tick()
+    assert rig.screen == "climate" and "70°F" in rig.texts()
+    assert rig.ha.calls == []
     assert rig.panel.call("climate", "set_temperature", "set_temperature", temperature=71) is False
     assert rig.ha.calls == []
-    rig.shot("11-status-read-only")
 
 
 def test_colour_level_darkens_the_frame():

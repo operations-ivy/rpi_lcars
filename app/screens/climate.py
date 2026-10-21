@@ -2,7 +2,10 @@
 top; one setpoint column (heat or cool) or two (auto), each with drawn
 arrows. Arrow taps show at once and gather for SEND_AFTER_SECONDS before one
 call goes to Home Assistant; a sent value shows until Home Assistant reports
-it (or CONFIRM_SECONDS pass)."""
+it (or CONFIRM_SECONDS pass).
+
+On a read-only panel it's a preview: the same controls, all disabled, open
+without the lock, and nothing is sent (Panel.call refuses too)."""
 from panel.thermostat import ACTION_LABELS, MODE_LABELS, MODES, fmt_temp, step, targets
 from screens.base import LEFT, RIGHT, TOP, PanelScreen
 from ui import colours
@@ -47,10 +50,20 @@ class Column:
 
 class ScreenClimate(PanelScreen):
     name = "climate"
-    title = "CLIMATE CONTROL"
+
+    @property
+    def preview(self):
+        return self.panel.read_only
+
+    @property
+    def title(self):
+        return "CLIMATE CONTROL - PREVIEW" if self.preview else "CLIMATE CONTROL"
 
     def build(self):
-        self.nav(("SECURE", self.secure, colours.RED_BROWN))
+        if self.preview:
+            self.nav()  # no SECURE: nothing to lock
+        else:
+            self.nav(("SECURE", self.secure, colours.RED_BROWN))
 
         self.mode_keys = {}
         for i, mode in enumerate(MODES):
@@ -67,6 +80,7 @@ class ScreenClimate(PanelScreen):
         self.action = self.add(LcarsLabel(colours.BLUE, (TOP + 85, RIGHT), "", 1.1, "right"))
         self.limits = self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 112, RIGHT), "", 1.0, "right"))
         self.sending = self.add(LcarsLabel(colours.GOLD, (TOP + 139, RIGHT), "", 1.0, "right"))
+        self.notice = self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 163, RIGHT), "", 1.0, "right"))
 
         self.pending, self.pending_at = {}, 0.0  # taps not sent yet
         self.sent, self.sent_at = {}, 0.0        # sent, not yet reported back
@@ -88,7 +102,7 @@ class ScreenClimate(PanelScreen):
     # Taps.
 
     def nudge(self, target, delta):
-        if target is None:
+        if target is None or self.preview:
             return
         lo, hi = self.panel.guardrails()
         data = step(self.setpoints(), target, delta, lo, hi, self.panel.cfg.HEAT_COOL_GAP)
@@ -99,7 +113,7 @@ class ScreenClimate(PanelScreen):
         self.pending_at = self.panel.clock()
 
     def set_mode(self, key, event, clock):
-        if key.mode == self.mode():
+        if self.preview or key.mode == self.mode():
             return
         self.flush()
         if self.panel.call("climate", "set_hvac_mode", "set_hvac_mode",
@@ -115,7 +129,7 @@ class ScreenClimate(PanelScreen):
 
     def flush(self):
         """Send the gathered taps now."""
-        if not self.pending:
+        if not self.pending or self.preview:
             return
         if self.panel.call("climate", "set_temperature", "set_temperature",
                            entity_id=self.panel.cfg.THERMOSTAT, **self.pending):
@@ -130,7 +144,7 @@ class ScreenClimate(PanelScreen):
 
     def refresh(self):
         p = self.panel
-        if not p.lock.can_change:
+        if not self.preview and not p.lock.can_change:
             self.pending = {}  # nothing goes out once locked
             self.go_status()
             return
@@ -150,6 +164,7 @@ class ScreenClimate(PanelScreen):
         for m, key in self.mode_keys.items():
             key.visible = m in available
             key.set_colour(colours.GOLD if m == mode else colours.GREY_BLUE)
+            key.set_enabled(not self.preview)
         self.inside.set(fmt_temp(attrs.get("current_temperature"), unit))
 
         lo, hi = p.guardrails()
@@ -165,8 +180,8 @@ class ScreenClimate(PanelScreen):
             in_flight = key in self.pending or key in self.sent
             column.show(key, label, fmt_temp(shown.get(key), unit),
                         colours.WHITE if in_flight else colours.BEIGE,
-                        step(shown, key, 1, lo, hi, gap) is not None,
-                        step(shown, key, -1, lo, hi, gap) is not None)
+                        not self.preview and step(shown, key, 1, lo, hi, gap) is not None,
+                        not self.preview and step(shown, key, -1, lo, hi, gap) is not None)
         if self.mode_sent:
             self.offline.set(f"SETTING {MODE_LABELS.get(self.mode_sent, self.mode_sent.upper())}")
         else:
@@ -174,6 +189,12 @@ class ScreenClimate(PanelScreen):
 
         action = attrs.get("hvac_action")
         state = ACTION_LABELS.get(action, (action or "--").upper())
+        if self.preview:  # the mode keys are all greyed out: name the mode
+            state = f"{MODE_LABELS.get(mode, (mode or '--').upper())} - {state}"
         self.action.set(state, colours.ORANGE if action in ("heating", "cooling") else colours.BLUE)
         self.limits.set(f"LIMITS {lo:.0f}-{hi:.0f}{unit}")
-        self.sending.set("TRANSMITTING" if self.pending or self.sent or self.mode_sent else "")
+        if self.preview:
+            self.sending.set("PREVIEW ONLY")
+            self.notice.set("CONTROLS DISABLED")
+        else:
+            self.sending.set("TRANSMITTING" if self.pending or self.sent or self.mode_sent else "")
