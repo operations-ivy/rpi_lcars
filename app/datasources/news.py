@@ -1,5 +1,5 @@
-"""Headlines for the status screen: an RSS feed (the Guardian's US news by
-default), polled like the homelab's feeds. Only each item's title is kept:
+"""Headlines for the status screen: an RSS feed (none by default: LCARS_NEWS_URL),
+polled like the homelab's feeds. Only each item's title is kept:
 no links, no descriptions, never the article."""
 import re
 import xml.etree.ElementTree as ET

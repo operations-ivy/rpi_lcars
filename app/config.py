@@ -64,6 +64,9 @@ SHOPPING_LIST = _str("LCARS_SHOPPING_LIST", "todo.shopping_list")
 # the game last played (the PlayStation Network integration's "Now playing").
 MEDIA_PLAYER = _str("LCARS_MEDIA_PLAYER", "media_player.playstation_5")
 MEDIA_IMAGE = _str("LCARS_MEDIA_IMAGE", "image.living_room_ps5_pw_now_playing")
+# The PS5 button is off for now: the sidebar holds every button, and it was
+# too crowded with it. True brings it back (the screen is unchanged).
+MEDIA_BUTTON = _bool("LCARS_MEDIA_BUTTON", False)
 # The CALENDAR screen: Home Assistant calendar entities, comma separated
 # (empty: no CALENDAR button), e.g. Google Calendar through HA's integration;
 # Google's sign-in stays in HA. This month and the MONTHS - 1 after it, read
@@ -92,10 +95,10 @@ ALERTS_POLL_SECONDS = _float("LCARS_ALERTS_POLL_SECONDS", 30)
 WIGLE_URL = _str("LCARS_WIGLE_URL", "https://wigle.brick.nozdormu.cloud").rstrip("/")
 WIGLE_POLL_SECONDS = _float("LCARS_WIGLE_POLL_SECONDS", 120)
 # Headlines under the house average on STATUS: an RSS feed's top items, one
-# at a time (empty: no headlines). Titles only, never links. The Guardian's
-# US news section, newest first: its US front (/us/rss) lists features first.
-NEWS_URL = _str("LCARS_NEWS_URL", "https://www.theguardian.com/us-news/rss")
-NEWS_SOURCE = _str("LCARS_NEWS_SOURCE", "GUARDIAN HEADLINES").upper()
+# at a time (empty, the default: no headlines). Titles only, never links.
+# The Guardian's US news was dropped (2026-10-22): too depressing.
+NEWS_URL = _str("LCARS_NEWS_URL")
+NEWS_SOURCE = _str("LCARS_NEWS_SOURCE", "HEADLINES").upper()
 NEWS_POLL_SECONDS = _float("LCARS_NEWS_POLL_SECONDS", 900)
 NEWS_COUNT = int(_float("LCARS_NEWS_COUNT", 3))
 NEWS_CYCLE_SECONDS = _float("LCARS_NEWS_CYCLE_SECONDS", 15)

@@ -1,7 +1,7 @@
 """The frame every panel screen shares: the LCARS background, a clock and the
-stardate under it in the top corner (both from its left), a title in the top bar, STATUS and
-THERMOSTAT on the top bar's blocks, the other screens down the sidebar, the
-Home Assistant link along the bottom."""
+stardate under it in the top corner (both from its left), a title in the top bar, every
+screen's button down the sidebar (STATUS and THERMOSTAT first), the Home
+Assistant link along the bottom."""
 from datetime import datetime
 
 from datasources.network import get_ip_addresses
@@ -16,7 +16,7 @@ LEFT, RIGHT, TOP, BOTTOM = 140, 775, 105, 435
 CORNER = 30
 
 # Blocks, (top, left) and size, matching lcars_screen_1.png. The top bar's two
-# long blocks (both of its rows) hold STATUS and THERMOSTAT.
+# long blocks (both of its rows) are plain: the buttons are all on the left.
 TOP_BAR = {
     "status": ((56, 412), (149, 41)),
     "thermostat": ((56, 563), (179, 41)),
@@ -65,7 +65,8 @@ class PanelScreen(LcarsScreen):
         """The sidebar's blocks, in order: (name, colour, text, handler), and
         last the screen's own action (the thermostat's UNLOCK or SECURE)."""
         cfg = self.panel.cfg
-        out = []
+        out = [("status", colours.BEIGE, "STATUS", self.go_status),
+               ("thermostat", colours.ORANGE, "THERMOSTAT", self.go_thermostat)]
         if cfg.PROMETHEUS_URL or cfg.OVERWATCH_URL:
             out.append(("alerts", colours.BLUE, "ALERTS", self.go_alerts))
         if cfg.WIGLE_URL:
@@ -74,7 +75,7 @@ class PanelScreen(LcarsScreen):
             out.append(("calendar", colours.BLUE, "CALENDAR", self.go_calendar))
         if cfg.SHOPPING_LIST:
             out.append(("shopping", colours.PURPLE, "SHOPPING", self.go_shopping))
-        if cfg.MEDIA_PLAYER:
+        if cfg.MEDIA_PLAYER and cfg.MEDIA_BUTTON:
             out.append(("media", colours.RED_BROWN, "PS5", self.go_media))
         if action:
             text, handler, colour = action
@@ -82,16 +83,13 @@ class PanelScreen(LcarsScreen):
         return out
 
     def nav(self, action=None):
-        """STATUS and THERMOSTAT on the top bar, the other screens down the
-        sidebar (screens()). The current screen's block does nothing. The
-        ALERTS block names the alert condition in its colour."""
+        """Every screen down the sidebar (screens()); the top bar's blocks are
+        plain. The current screen's block does nothing. The ALERTS block
+        names the alert condition in its colour."""
         here = self.name
         self.nav_keys = {}
-        for name, colour, text, handler in (("status", colours.BEIGE, "STATUS", self.go_status),
-                                            ("thermostat", colours.ORANGE, "THERMOSTAT", self.go_thermostat)):
-            pos, size = TOP_BAR[name]
-            self.nav_keys[name] = self.add(LcarsKey(colour, pos, size, text, None if here == name else handler,
-                                                align="corner"), layer=2)
+        for name, colour in (("status", colours.BEIGE), ("thermostat", colours.ORANGE)):
+            self.add(LcarsBlock(colour, *TOP_BAR[name]), layer=2)
         # The background splits only the bar's upper row there: black the
         # whole gap between the two.
         (top, left), (width, height) = TOP_BAR["status"]
