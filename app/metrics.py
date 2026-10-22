@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HELP = {
     "lcars_ha_up": ("gauge", "1 while Home Assistant answers the panel's polls."),
-    "lcars_ha_requests_total": ("counter", "Requests to Home Assistant, by kind (state, items, picture, call) and result."),
+    "lcars_ha_requests_total": ("counter", "Requests to Home Assistant, by kind (state, items, picture, calendar, call) and result."),
     "lcars_unlock_attempts_total": ("counter", "Codes entered, by result (granted, denied, locked_out, hard_locked, no_code)."),
     "lcars_relocks_total": ("counter", "Times the panel locked itself, by reason (idle, dark, hard_locked)."),
     "lcars_commands_total": ("counter", "Changes sent to Home Assistant, by action."),
@@ -20,6 +20,8 @@ HELP = {
     "lcars_room_reads_total": ("counter", "Room sensor reads, by result."),
     "lcars_room_temperature_fahrenheit": ("gauge", "The room's temperature, offset applied."),
     "lcars_room_humidity_percent": ("gauge", "The room's relative humidity."),
+    "lcars_calendar_up": ("gauge", "1 while Home Assistant's calendars answer (only when calendars are configured)."),
+    "lcars_calendar_events_today": ("gauge", "Calendar events still to come or running today (titles are never exported)."),
     "lcars_feed_up": ("gauge", "1 while the homelab feed answers, by feed (prometheus, overwatch, wigle, news)."),
     "lcars_feed_requests_total": ("counter", "Requests to the homelab feeds, by feed and result."),
     "lcars_weather_up": ("gauge", "1 while a weather source answers."),

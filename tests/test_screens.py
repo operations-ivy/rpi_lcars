@@ -449,7 +449,8 @@ def test_clock_network_and_sun_on_status():
     assert "BRICK 1982" not in texts
     stardate = [l for l in rig.sprites(LcarsLabel) if l.text.startswith("STARDATE ")]
     assert stardate and ":" not in stardate[0].text
-    assert stardate[0].rect.right == 106 and stardate[0].rect.top == 46   # under the clock
+    clock = [l for l in rig.sprites(LcarsLabel) if l.text == datetime.now().strftime("%H:%M")]
+    assert stardate[0].rect.left == clock[0].rect.left == 30 and stardate[0].rect.top == 46   # under the clock, left aligned
     assert "ONLINE" in texts and "SETS 18:24" in texts
     rig.ha.set(config.WAN_ENTITY, "off")
     rig.ha.set(config.SUN_ENTITY, "below_horizon", **rig.ha.attrs(config.SUN_ENTITY))

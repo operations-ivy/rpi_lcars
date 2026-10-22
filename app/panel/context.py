@@ -5,6 +5,7 @@ read from it and never talk to Home Assistant themselves."""
 import time
 
 import config
+from datasources import calendar as cal
 from panel import infra
 from panel import lock as L
 from panel.night import sun_times
@@ -186,6 +187,22 @@ class Panel:
             return None
         return ([i for i in items if i.get("status") != "completed"]
                 + [i for i in items if i.get("status") == "completed"])
+
+    def calendar(self):
+        """(events, stale) for the CALENDAR screen (datasources/calendar.py's
+        parse()), or None before the calendars have answered."""
+        events = self.ha.events()
+        if events is None:
+            return None
+        age = self.ha.events_age()
+        return events, age is None or age > self.cfg.CALENDAR_STALE_SECONDS
+
+    def upcoming(self):
+        """Today's and tomorrow's events still to come, for STATUS:
+        [(day, [entry])] (datasources/calendar.py's agenda()); [] without
+        calendars or before they've answered."""
+        events = self.ha.events() if self.cfg.CALENDARS else None
+        return cal.agenda(events, self.ha.now(), 2) if events else []
 
     def media(self):
         """The console: {"state", "title", "picture"}; picture is image bytes

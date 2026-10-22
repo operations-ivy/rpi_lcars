@@ -2,6 +2,7 @@
 LcarsButton puts them bottom right), and arrows and code dots are drawn: the
 LCARS font has no ▲, ▼ or ●."""
 import io
+import unicodedata
 
 import pygame
 from pygame.font import Font
@@ -29,6 +30,15 @@ def beep():
     _beep[0].play()
 
 
+def drawable(text, size=1.0):
+    """text the LCARS font can draw: accents folded (É -> E), anything else
+    it has no glyph for (emoji, most symbols) dropped, spaces tidied."""
+    f = font(size)
+    folded = "".join(c for c in unicodedata.normalize("NFKD", str(text)) if not unicodedata.combining(c))
+    kept = "".join(c for c in folded if c == " " or (f.metrics(c) or [None])[0] is not None)
+    return " ".join(kept.split())
+
+
 def wrap(text, size, width, lines):
     """text in at most lines lines no wider than width; "…" ends it when cut."""
     f, words, out = font(size), str(text).split(), []
@@ -43,6 +53,16 @@ def wrap(text, size, width, lines):
             last.pop()
         out[-1] = " ".join(last) + "…"
     return out
+
+
+def clip(text, size, width):
+    """text cut to width, "…" at the end when it is."""
+    f, text = font(size), str(text)
+    if f.size(text)[0] <= width:
+        return text
+    while text and f.size(text.rstrip() + "…")[0] > width:
+        text = text[:-1]
+    return text.rstrip() + "…"
 
 
 class LcarsLabel(LcarsWidget):
@@ -166,6 +186,38 @@ class LcarsKey(_Pressable):
         if text != self.text:
             self.text = text
             self.redraw()
+
+
+class LcarsCell(_Pressable):
+    """A box of short lines, each (text, colour, size) and cut to fit, with
+    an outline round it when it has a colour: a day on the month grid. Only
+    pressable with a handler."""
+
+    def __init__(self, pos, size):
+        self.lines, self.outline = (), None
+        _Pressable.__init__(self, colours.BLACK, pos, size, None)
+        self.enabled = False
+
+    def set(self, lines, outline=None, handler=None):
+        lines = tuple(lines)
+        self.handler = handler
+        self.enabled = handler is not None
+        if (lines, outline) != (self.lines, self.outline):
+            self.lines, self.outline = lines, outline
+            self.redraw()
+
+    def draw(self, surface, colour):
+        w, h = surface.get_size()
+        outline = colours.WHITE if colour == colours.WHITE else self.outline
+        if outline:
+            pygame.draw.rect(surface, outline, (0, 0, w, h), width=2, border_radius=6)
+        y = 2
+        for text, c, size in self.lines:
+            f = font(size)
+            if y + f.get_ascent() > h:
+                break
+            surface.blit(f.render(clip(text, size, w - 10), True, c), (5, y))
+            y += f.get_ascent() + 1
 
 
 class LcarsBlock(LcarsWidget):

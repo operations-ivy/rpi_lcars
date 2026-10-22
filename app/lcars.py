@@ -27,7 +27,9 @@ def main():
                 config.SETPOINT_MAX_ENTITY, config.SUN_ENTITY, config.WAN_ENTITY, config.MEDIA_PLAYER]
     ha = HomeAssistant(config.HA_URL, config.HA_TOKEN, [e for e in entities if e],
                        config.HA_POLL_SECONDS, metrics, todo=config.SHOPPING_LIST or None,
-                       pictures=[e for e in (config.MEDIA_PLAYER, config.MEDIA_IMAGE) if e])
+                       pictures=[e for e in (config.MEDIA_PLAYER, config.MEDIA_IMAGE) if e],
+                       calendars=config.CALENDARS, calendar_seconds=config.CALENDAR_POLL_SECONDS,
+                       calendar_months=config.CALENDAR_MONTHS)
     ha.start()
     weather = Weather(config.WEATHER_POINT, config.WEATHER_POLL_SECONDS, metrics)
     weather.start()
