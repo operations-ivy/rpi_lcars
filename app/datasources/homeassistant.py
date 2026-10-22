@@ -12,7 +12,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from datasources import calendar as cal
 
@@ -27,7 +27,7 @@ class HomeAssistant(threading.Thread):
     def __init__(self, url, token, entities, poll_seconds=5, metrics=None,
                  opener=urllib.request.urlopen, clock=time.monotonic,
                  todo=None, todo_seconds=30, pictures=(),
-                 calendars=(), calendar_seconds=300, calendar_days=3, now=None):
+                 calendars=(), calendar_seconds=300, calendar_months=2, now=None):
         super().__init__(name="homeassistant", daemon=True)
         self.url, self.token = url.rstrip("/"), token
         self.todo, self.todo_seconds = todo, todo_seconds
@@ -40,7 +40,7 @@ class HomeAssistant(threading.Thread):
         self._items = None  # the to-do list's items, once fetched
         self._next_items = 0.0
         self._pictures = {}  # entity -> (key, bytes)
-        self.calendars, self.calendar_seconds, self.calendar_days = list(calendars), calendar_seconds, calendar_days
+        self.calendars, self.calendar_seconds, self.calendar_months = list(calendars), calendar_seconds, calendar_months
         self.now = now or (lambda: datetime.now().astimezone())
         self._events = None  # every calendar's events, once all have answered
         self._next_events = 0.0
@@ -197,16 +197,15 @@ class HomeAssistant(threading.Thread):
             self._items = items
 
     def _fetch_events(self):
-        """All the calendars, from the start of today for calendar_days days,
-        every calendar_seconds; all or nothing, so one calendar failing never
+        """All the calendars, the month grids from this month's for
+        calendar_months months, every calendar_seconds; all or nothing, so one calendar failing never
         hides another's events behind a half answer. Titles aren't logged."""
         if not self.calendars or self.clock() < self._next_events:
             return
         self._next_events = self.clock() + self.calendar_seconds
         now = self.now()
-        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        span = {"start": start.astimezone(timezone.utc).isoformat(),
-                "end": (start + timedelta(days=self.calendar_days)).astimezone(timezone.utc).isoformat()}
+        start, end = cal.window(now, self.calendar_months)
+        span = {"start": start.astimezone(timezone.utc).isoformat(), "end": end.astimezone(timezone.utc).isoformat()}
         events = []
         for entity in self.calendars:
             try:

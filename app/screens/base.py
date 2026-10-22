@@ -1,5 +1,5 @@
 """The frame every panel screen shares: the LCARS background, a clock and the
-stardate under it in the top corner, a title in the top bar, STATUS and
+stardate under it in the top corner (both from its left), a title in the top bar, STATUS and
 THERMOSTAT on the top bar's blocks, the other screens down the sidebar, the
 Home Assistant link along the bottom."""
 from datetime import datetime
@@ -12,6 +12,8 @@ from ui.widgets.screen import LcarsScreen
 
 # The frame's open area (x from 125 to 785, y from 100 to 440).
 LEFT, RIGHT, TOP, BOTTOM = 140, 775, 105, 435
+# The clock and the stardate's left edge, in the top left block.
+CORNER = 30
 
 # Blocks, (top, left) and size, matching lcars_screen_1.png. The top bar's two
 # long blocks (both of its rows) hold STATUS and THERMOSTAT.
@@ -42,11 +44,11 @@ class PanelScreen(LcarsScreen):
     def setup(self, all_sprites):
         self.sprites = all_sprites
         all_sprites.add(LcarsBackgroundImage("assets/lcars_screen_1.png"), layer=0)
-        self.clock = self.add(LcarsLabel(colours.BLACK, (13, 106), "", 1.5, "right"))
+        self.clock = self.add(LcarsLabel(colours.BLACK, (13, CORNER), "", 1.5))
         self.add(LcarsLabel(colours.ORANGE, (0, 135), self.title, 2))
         # The first address only: the bar fits one.
         self.add(LcarsLabel(colours.BLACK, (444, 470), next(iter(get_ip_addresses()), "")))
-        self.stardate = self.add(LcarsLabel(colours.BLACK, (46, 106), "", 0.7, "right"))
+        self.stardate = self.add(LcarsLabel(colours.BLACK, (46, CORNER), "", 0.7))
         self.link = self.add(LcarsLabel(colours.BLUE, (BOTTOM - 25, RIGHT), "", 1.2, "right"))
         self.build()
         self.refresh()

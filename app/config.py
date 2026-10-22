@@ -66,9 +66,10 @@ MEDIA_PLAYER = _str("LCARS_MEDIA_PLAYER", "media_player.playstation_5")
 MEDIA_IMAGE = _str("LCARS_MEDIA_IMAGE", "image.living_room_ps5_pw_now_playing")
 # The CALENDAR screen: Home Assistant calendar entities, comma separated
 # (empty: no CALENDAR button), e.g. Google Calendar through HA's integration;
-# Google's sign-in stays in HA. Today and the next DAYS - 1, read every POLL.
+# Google's sign-in stays in HA. This month and the MONTHS - 1 after it, read
+# every POLL; STATUS shows today's and tomorrow's.
 CALENDARS = [c.strip() for c in _str("LCARS_CALENDARS").split(",") if c.strip()]
-CALENDAR_DAYS = int(_float("LCARS_CALENDAR_DAYS", 3))
+CALENDAR_MONTHS = max(1, int(_float("LCARS_CALENDAR_MONTHS", 2)))
 CALENDAR_POLL_SECONDS = _float("LCARS_CALENDAR_POLL_SECONDS", 300)
 # Events older than this are shown as stale (HA or Google down).
 CALENDAR_STALE_SECONDS = _float("LCARS_CALENDAR_STALE_SECONDS", 1800)

@@ -55,6 +55,16 @@ def wrap(text, size, width, lines):
     return out
 
 
+def clip(text, size, width):
+    """text cut to width, "…" at the end when it is."""
+    f, text = font(size), str(text)
+    if f.size(text)[0] <= width:
+        return text
+    while text and f.size(text.rstrip() + "…")[0] > width:
+        text = text[:-1]
+    return text.rstrip() + "…"
+
+
 class LcarsLabel(LcarsWidget):
     """Text anchored at (top, x): its left edge, centre or right edge sits on x.
     Re-renders only when the text or colour changes."""
@@ -176,6 +186,38 @@ class LcarsKey(_Pressable):
         if text != self.text:
             self.text = text
             self.redraw()
+
+
+class LcarsCell(_Pressable):
+    """A box of short lines, each (text, colour, size) and cut to fit, with
+    an outline round it when it has a colour: a day on the month grid. Only
+    pressable with a handler."""
+
+    def __init__(self, pos, size):
+        self.lines, self.outline = (), None
+        _Pressable.__init__(self, colours.BLACK, pos, size, None)
+        self.enabled = False
+
+    def set(self, lines, outline=None, handler=None):
+        lines = tuple(lines)
+        self.handler = handler
+        self.enabled = handler is not None
+        if (lines, outline) != (self.lines, self.outline):
+            self.lines, self.outline = lines, outline
+            self.redraw()
+
+    def draw(self, surface, colour):
+        w, h = surface.get_size()
+        outline = colours.WHITE if colour == colours.WHITE else self.outline
+        if outline:
+            pygame.draw.rect(surface, outline, (0, 0, w, h), width=2, border_radius=6)
+        y = 2
+        for text, c, size in self.lines:
+            f = font(size)
+            if y + f.get_ascent() > h:
+                break
+            surface.blit(f.render(clip(text, size, w - 10), True, c), (5, y))
+            y += f.get_ascent() + 1
 
 
 class LcarsBlock(LcarsWidget):
