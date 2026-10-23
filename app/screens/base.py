@@ -1,15 +1,13 @@
 """The frame every panel screen shares: the LCARS background, a clock and the
 stardate under it in the top corner (both from its left), a title in the top bar, every
-screen's button down the sidebar (STATUS and THERMOSTAT first), the date and
-the outside temperature on the top bar's blocks, the Home Assistant link along
-the bottom."""
+STATUS on the top bar's first long block and Starfleet's delta on the second,
+the other screens down the sidebar, the Home Assistant link along the bottom."""
 from datetime import datetime
 
 from datasources.network import get_ip_addresses
-from panel.thermostat import fmt_temp
 from ui import colours
 from ui.widgets.background import LcarsBackgroundImage
-from ui.widgets.panel_widgets import LcarsBlock, LcarsKey, LcarsLabel
+from ui.widgets.panel_widgets import LcarsBlock, LcarsDelta, LcarsKey, LcarsLabel
 from ui.widgets.screen import LcarsScreen
 
 # The frame's open area (x from 125 to 785, y from 100 to 440).
@@ -18,11 +16,10 @@ LEFT, RIGHT, TOP, BOTTOM = 140, 775, 105, 435
 CORNER = 30
 
 # Blocks, (top, left) and size, matching lcars_screen_1.png. The top bar's two
-# long blocks (both of its rows) carry the date and the outside temperature,
-# in their corners like a button's text: the buttons are all on the left.
+# long blocks (both of its rows) hold STATUS and the delta.
 TOP_BAR = {
     "status": ((56, 412), (149, 41)),
-    "thermostat": ((56, 563), (179, 41)),
+    "delta": ((56, 563), (179, 41)),
 }
 SIDEBAR = {
     "upper": ((145, 16), (98, 62)),
@@ -32,8 +29,6 @@ SIDEBAR = {
 # The sidebar's blocks go to the screens in order; the lower block is cut into
 # as many as are left, with the background's 4 px black gap between.
 GAP = 4
-# The top bar's text, from the block's bottom to the text's top.
-TOP_BAR_TEXT = 24
 CONDITION = {"RED": ("RED ALERT", colours.RED), "YELLOW": ("YELLOW ALERT", colours.GOLD),
              "GREEN": ("ALERTS", colours.BLUE), "UNKNOWN": ("ALERTS", colours.GREY_BLUE)}
 
@@ -70,8 +65,7 @@ class PanelScreen(LcarsScreen):
         """The sidebar's blocks, in order: (name, colour, text, handler), and
         last the screen's own action (the thermostat's UNLOCK or SECURE)."""
         cfg = self.panel.cfg
-        out = [("status", colours.BEIGE, "STATUS", self.go_status),
-               ("thermostat", colours.ORANGE, "THERMOSTAT", self.go_thermostat)]
+        out = [("thermostat", colours.ORANGE, "THERMOSTAT", self.go_thermostat)]
         if cfg.PROMETHEUS_URL or cfg.OVERWATCH_URL:
             out.append(("alerts", colours.BLUE, "ALERTS", self.go_alerts))
         if cfg.WIGLE_URL:
@@ -88,21 +82,19 @@ class PanelScreen(LcarsScreen):
         return out
 
     def nav(self, action=None):
-        """Every screen down the sidebar (screens()); the date and outside on
-        the top bar's blocks. The current screen's block does nothing. The
+        """STATUS and the delta on the top bar, the other screens down the
+        sidebar (screens()). The current screen's block does nothing. The
         ALERTS block names the alert condition in its colour."""
         here = self.name
-        self.nav_keys = {}
-        self.top_bar = {}
-        for name, colour in (("status", colours.BEIGE), ("thermostat", colours.ORANGE)):
-            (top, left), (width, height) = TOP_BAR[name]
-            self.add(LcarsBlock(colour, (top, left), (width, height)), layer=2)
-            self.top_bar[name] = self.add(LcarsLabel(colours.BLACK, (top + height - TOP_BAR_TEXT, left + width - 8),
-                                                     "", 1.0, "right", max_width=width - 16), layer=3)
+        pos, size = TOP_BAR["status"]
+        self.nav_keys = {"status": self.add(LcarsKey(colours.BEIGE, pos, size, "STATUS",
+                                                     None if here == "status" else self.go_status,
+                                                     align="corner"), layer=2)}
+        self.add(LcarsDelta(colours.ORANGE, *TOP_BAR["delta"]), layer=2)
         # The background splits only the bar's upper row there: black the
         # whole gap between the two.
         (top, left), (width, height) = TOP_BAR["status"]
-        gap = TOP_BAR["thermostat"][0][1] - (left + width)
+        gap = TOP_BAR["delta"][0][1] - (left + width)
         self.add(LcarsBlock(colours.BLACK, (top, left + width), (gap, height)), layer=2)
         blocks = self.screens(action)
         slots = [SIDEBAR["upper"], SIDEBAR["middle"]][:len(blocks)]
@@ -119,14 +111,6 @@ class PanelScreen(LcarsScreen):
         for slot, (name, colour, text, handler) in zip(slots, blocks):
             self.nav_keys[name] = self.sidebar(slot, colour, text, None if here == name else handler)
         return self.nav_keys.get("action")
-
-    def show_top_bar(self, now):
-        labels = getattr(self, "top_bar", None)
-        if not labels:
-            return
-        labels["status"].set(f"{now:%a %d %b}".upper())
-        temp, condition = self.panel.outside()
-        labels["thermostat"].set("--" if temp is None else f"OUTSIDE {fmt_temp(temp, '°F')}")
 
     def show_condition(self):
         key = self.nav_keys.get("alerts") if hasattr(self, "nav_keys") else None
@@ -150,7 +134,6 @@ class PanelScreen(LcarsScreen):
         now = datetime.now()
         self.clock.set(f"{now:%H:%M}")
         self.stardate.set(f"STARDATE {now:%Y.%j}")
-        self.show_top_bar(now)
         ok, text = self.link_text()
         self.link.set(text, colours.BLUE if ok else colours.RED)
         self.show_condition()

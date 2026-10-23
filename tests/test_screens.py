@@ -461,10 +461,12 @@ def test_clock_network_and_sun_on_status():
 
 def test_sidebar_has_shopping_and_ps5_only_when_configured(monkeypatch):
     rig = Rig(web=quiet_web())
-    assert rig.key("SHOPPING") and "PS5" not in [k.text for k in rig.sprites(LcarsKey)]   # PS5 off by default
-    monkeypatch.setattr(config, "MEDIA_BUTTON", True)
-    rig = Rig(web=quiet_web())
+    assert rig.key("SHOPPING") and rig.key("PS5")
     assert rig.key("PS5").rect.bottom == 396          # the last block still ends where the frame's does
+    monkeypatch.setattr(config, "MEDIA_BUTTON", False)
+    rig = Rig(web=quiet_web())
+    assert "PS5" not in [k.text for k in rig.sprites(LcarsKey)]   # switched off, still configured
+    monkeypatch.setattr(config, "MEDIA_BUTTON", True)
     monkeypatch.setattr(config, "SHOPPING_LIST", "")
     monkeypatch.setattr(config, "MEDIA_PLAYER", "")
     rig = Rig(web=quiet_web())
@@ -506,8 +508,7 @@ def test_shopping_list_empty_and_unavailable():
     assert "ADD ITEMS FROM THE HOME ASSISTANT APP" in rig.texts()
 
 
-def test_ps5_screen(monkeypatch):
-    monkeypatch.setattr(config, "MEDIA_BUTTON", True)
+def test_ps5_screen():
     rig = Rig(web=quiet_web())
     rig.ha._pictures[config.MEDIA_IMAGE] = ("k", png())
     rig.tap(rig.key("PS5"))
@@ -524,8 +525,7 @@ def test_ps5_screen(monkeypatch):
     rig.tick()                                             # doesn't crash
 
 
-def test_status_leaves_shopping_and_the_ps5_to_their_screens(monkeypatch):
-    monkeypatch.setattr(config, "MEDIA_BUTTON", True)
+def test_status_leaves_shopping_and_the_ps5_to_their_screens():
     rig = Rig(web=quiet_web())
     rig.ha._items = [{"summary": "Milk", "uid": "a", "status": "needs_action"}]
     rig.ha.set(config.MEDIA_PLAYER, "playing", media_title="Astro Bot")
@@ -582,20 +582,24 @@ def feeds(**ages):
             "wigle": FakeFeed(WIGLE, ages.get("wigle", 5))}
 
 
-def test_navigation_all_down_the_sidebar():
+def test_navigation_top_bar_and_sidebar():
     rig = Rig(web=quiet_web(), feeds=feeds(), now=lambda: NOW)
     status, thermostat = rig.key("STATUS"), rig.key("THERMOSTAT")
-    assert status.rect.top == 145 and thermostat.rect.top == 211        # the sidebar's first two blocks
-    assert all(k.rect.left == 16 for k in rig.sprites(LcarsKey))        # every button on the left
-    lower = [rig.key(t) for t in ("RED ALERT", "WIGLE", "SHOPPING")]    # ALERTS named for the condition
+    assert status.rect.top == 56                                        # on the top bar
+    assert thermostat.rect.top == 145                                   # the big sidebar block
+    assert all(k.rect.left == 16 for k in rig.sprites(LcarsKey) if k is not status)   # the rest on the left
+    assert rig.key("RED ALERT").rect.top == 211                         # named for the condition
+    lower = [rig.key(t) for t in ("WIGLE", "SHOPPING", "PS5")]
     assert lower[0].rect.top == 249 and lower[-1].rect.bottom == 396
     assert "CLIMATE" not in [k.text for k in rig.sprites(LcarsKey)]    # THERMOSTAT is the controls
-    top_bar = [l.text for l in rig.sprites(LcarsLabel) if 56 <= l.rect.top < 97 and l.rect.left > 400]
-    assert len(top_bar) == 2 and top_bar[1].startswith("OUTSIDE ")      # the date, then outside, on its blocks
+    surface = rig.ui.screenSurface
+    block = [surface.get_at((x, y))[:3] for x in range(563, 742) for y in range(56, 97)]
+    black = sum(1 for c in block if c == (0, 0, 0))
+    assert 100 < black < 600 and block[0] == (255, 153, 0)              # the delta, small, black on orange
     rig.shot("17-status-nav")
     rig.tap(thermostat)
     assert rig.screen == "thermostat"
-    lower = [rig.key(t) for t in ("RED ALERT", "WIGLE", "SHOPPING", "UNLOCK")]
+    lower = [rig.key(t) for t in ("WIGLE", "SHOPPING", "PS5", "UNLOCK")]
     assert lower[-1].rect.bottom == 396
     rig.shot("18-thermostat-locked")
     rig.tap(rig.key("STATUS"))
