@@ -3,7 +3,7 @@ what's been ticked off. A tap ticks an item off, or back on. Open to anyone:
 it isn't the thermostat."""
 from screens.base import LEFT, RIGHT, TOP, PanelScreen
 from ui import colours
-from ui.widgets.panel_widgets import LcarsKey, LcarsLabel
+from ui.widgets.panel_widgets import LcarsHeader, LcarsKey, LcarsLabel
 
 COLUMNS, ROWS = 2, 7
 ROW_TOP, ROW_HEIGHT, ROW_STEP, COLUMN_GAP = TOP + 50, 30, 36, 25
@@ -16,7 +16,7 @@ class ScreenShopping(PanelScreen):
 
     def build(self):
         self.nav()
-        self.heading = self.add(LcarsLabel(colours.ORANGE, (TOP + 10, LEFT), "", 1.5))
+        self.heading = self.add(LcarsHeader(colours.ORANGE, (TOP + 10, LEFT), RIGHT - LEFT - 130, "", 1.5))
         self.more = self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 15, RIGHT), "", 1.1, "right"))
         self.rows = []
         for column in range(COLUMNS):

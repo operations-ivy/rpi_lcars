@@ -311,24 +311,31 @@ class LcarsHeader(LcarsWidget):
     """A section's name with a bar running on from it to width, rounded at
     its far end: how LCARS heads a group instead of bare text."""
 
-    BAR = 0.45  # the bar's height over the text's
+    BAR = 0.45  # the bar's height over the capitals'
 
-    def __init__(self, colour, pos, width, text, size=1.0, bar_colour=None):
-        f = font(size)
-        label = f.render(text, True, colour)
-        self.image = pygame.Surface((width, label.get_height())).convert()
+    def __init__(self, colour, pos, width, text="", size=1.0, bar_colour=None):
+        self.colour, self.bar_colour, self.width = colour, bar_colour, width
+        self.font, self.text = font(size), None
+        self.image = pygame.Surface((width, self.font.get_height())).convert()
+        LcarsWidget.__init__(self, colour, pos, None)
+        self.set(text)
+
+    def set(self, text, colour=None):
+        colour = colour or self.colour
+        if (text, colour) == (self.text, getattr(self, "_drawn", None)):
+            return
+        self.text, self._drawn = text, colour
+        f, w = self.font, self.width
         self.image.fill(colours.BLACK)
+        label = f.render(text, True, colour)
         self.image.blit(label, (0, 0))
-        start = label.get_width() + 10
-        # The bar on the capitals' middle: the font's ascent includes room
-        # above them, so a little below the ascent's middle.
+        start = label.get_width() + 10 if text else 0
+        # On the capitals' middle: the ascent has room above them.
         bar = max(4, round(f.get_ascent() * self.BAR))
         middle = round(f.get_ascent() * 0.58)
-        if width - start > bar:
-            pygame.draw.rect(self.image, bar_colour or colour, (start, middle - bar // 2, width - start, bar),
+        if w - start > bar:
+            pygame.draw.rect(self.image, self.bar_colour or colour, (start, middle - bar // 2, w - start, bar),
                              border_top_right_radius=bar // 2, border_bottom_right_radius=bar // 2)
-        self.text = text
-        LcarsWidget.__init__(self, colour, pos, None)
 
     def handleEvent(self, event, clock):
         return False
@@ -388,6 +395,61 @@ class LcarsCascade(LcarsWidget):
             self.last = now
             self.lines = self.lines[1:] + [self.row()]
             self.redraw()
+
+    def handleEvent(self, event, clock):
+        return False
+
+
+class LcarsGauge(LcarsWidget):
+    """A vertical scale in a bracket, like LCARS's: whole degrees from two
+    below the low guardrail to two above the high, the guardrails' range
+    lit gold, a bar across it at each setpoint (orange heat, blue cool) and
+    an oval at the current reading."""
+
+    def __init__(self, pos, size):
+        self.image = pygame.Surface(size).convert()
+        self.drawn = None
+        LcarsWidget.__init__(self, colours.BLACK, pos, None)
+        self.set(None, None, None, ())
+
+    def set(self, lo, hi, current, marks):
+        """marks: (value, colour) for each setpoint."""
+        key = (lo, hi, current, tuple(marks))
+        if key == self.drawn:
+            return
+        self.drawn = key
+        s = self.image
+        s.fill(colours.BLACK)
+        w, h = s.get_size()
+        arm, pad = 12, 16
+        # The bracket: a bar down the left, arms along the top and bottom.
+        pygame.draw.rect(s, colours.PEACH, (0, 0, arm, h), border_top_left_radius=arm, border_bottom_left_radius=arm)
+        pygame.draw.rect(s, colours.PEACH, (0, 0, 44, 8), border_top_left_radius=arm, border_top_right_radius=4)
+        pygame.draw.rect(s, colours.PEACH, (0, h - 8, 44, 8), border_bottom_left_radius=arm,
+                         border_bottom_right_radius=4)
+        if lo is None or hi is None:
+            return
+        vmin, vmax = int(lo) - 2, int(hi) + 2
+
+        def y(v):
+            return round(pad + (vmax - v) / (vmax - vmin) * (h - 2 * pad))
+        f = font(0.85)
+        for v in range(vmin, vmax + 1):
+            inside = lo <= v <= hi
+            top = y(v + 0.5) if v < vmax else y(v)
+            bottom = y(v - 0.5) if v > vmin else y(v)
+            pygame.draw.rect(s, colours.GOLD if inside else colours.RED_BROWN, (18, top + 1, 10, bottom - top - 1))
+            long = v % 2 == 0
+            pygame.draw.line(s, colours.ORANGE, (31, y(v)), (31 + (10 if long else 5), y(v)), 2)
+            if long:
+                label = f.render(str(v), True, colours.BLUE)
+                s.blit(label, label.get_rect(midleft=(46, y(v))))
+        for value, colour in marks:
+            if value is not None and vmin <= value <= vmax:
+                pygame.draw.rect(s, colour, (14, y(value) - 3, 30, 6), border_radius=3)
+        if current is not None:
+            yc = y(min(max(current, vmin), vmax))
+            pygame.draw.ellipse(s, colours.BEIGE, (w - 30, yc - 7, 26, 14))
 
     def handleEvent(self, event, clock):
         return False

@@ -5,7 +5,7 @@ to anyone."""
 from panel.infra import ago
 from screens.base import LEFT, RIGHT, TOP, PanelScreen
 from ui import colours
-from ui.widgets.panel_widgets import LcarsKey, LcarsLabel
+from ui.widgets.panel_widgets import LcarsHeader, LcarsKey, LcarsLabel
 
 RIGHT_X = 470
 ROW_TOP, ROW_HEIGHT, INFRA_ROWS = TOP + 92, 26, 8
@@ -28,19 +28,19 @@ class ScreenAlerts(PanelScreen):
         self.nav()
         self.condition = self.add(LcarsLabel(colours.BLUE, (TOP + 8, LEFT), "", 2.2))
 
-        self.add(LcarsLabel(colours.ORANGE, (TOP + 62, LEFT), "INFRASTRUCTURE", 1.3))
+        self.add(LcarsHeader(colours.ORANGE, (TOP + 62, LEFT), RIGHT_X - LEFT - 24, "INFRASTRUCTURE", 1.3))
         self.infra = []
         for i in range(INFRA_ROWS):
             top = ROW_TOP + i * ROW_HEIGHT
-            mark = self.add(LcarsKey(colours.BLUE, (top + 2, LEFT), MARK, ""), layer=2)
+            mark = self.add(LcarsKey(colours.BLUE, (top + 2, LEFT), MARK, "", pill=True), layer=2)
             label = self.add(LcarsLabel(colours.BLUE, (top, LEFT + 22), "", 1.1, max_width=RIGHT_X - LEFT - 42))
             self.infra.append((mark, label))
 
-        self.add(LcarsLabel(colours.ORANGE, (TOP + 62, RIGHT_X), "OVERWATCH", 1.3))
+        self.add(LcarsHeader(colours.ORANGE, (TOP + 62, RIGHT_X), RIGHT - RIGHT_X, "OVERWATCH", 1.3))
         self.feeds = []
         for i in range(3):
             top = ROW_TOP + i * ROW_HEIGHT
-            mark = self.add(LcarsKey(colours.BLUE, (top + 2, RIGHT_X), MARK, ""), layer=2)
+            mark = self.add(LcarsKey(colours.BLUE, (top + 2, RIGHT_X), MARK, "", pill=True), layer=2)
             name = self.add(LcarsLabel(colours.PURPLE, (top, RIGHT_X + 22), "", 1.1))
             word = self.add(LcarsLabel(colours.BLUE, (top, FEED_VALUE), "", 1.1, max_width=RIGHT - FEED_VALUE))
             self.feeds.append((mark, name, word))

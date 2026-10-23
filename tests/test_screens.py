@@ -140,6 +140,40 @@ def alert_rig():
     return Rig()
 
 
+def test_title_top_right_with_running_numbers(rig):
+    title = [l for l in rig.sprites(LcarsLabel) if l.text == "STATUS REPORT"][0]
+    assert title.rect.right == 783 and title.rect.top == 0
+    cascade = rig.ui.screen.cascade
+    assert cascade.rect.left == 135 and cascade.rect.right < title.rect.left
+    before = list(cascade.lines)
+    rig.clock.t += 0.5
+    rig.tick()
+    assert cascade.lines == before                                      # not yet
+    rig.clock.t += 1
+    rig.tick()
+    assert cascade.lines[:2] == before[1:]                              # a row on
+
+
+def test_status_ship_and_its_callouts(rig):
+    from ui.widgets.msd import LcarsCallouts, LcarsShip
+    ship = [s for s in rig.ui.all_sprites.sprites() if isinstance(s, LcarsShip)][0]
+    assert ship.rect.left == 652 and ship.rect.right <= 775            # inside the frame
+    lines = [s for s in rig.ui.all_sprites.sprites() if isinstance(s, LcarsCallouts)]
+    assert len(lines) == 1
+    x, y = ship.part("bridge")
+    assert rig.ui.screenSurface.get_at((x, y))[:3] != (0, 0, 0)         # the bridge is drawn there
+    assert "HOUSE AVERAGE" in rig.texts()
+
+
+def test_thermostat_scale(rig):
+    from ui.widgets.panel_widgets import LcarsGauge
+    rig.tap(rig.key("THERMOSTAT"))
+    gauge = [s for s in rig.ui.all_sprites.sprites() if isinstance(s, LcarsGauge)][0]
+    lo, hi, current, marks = gauge.drawn
+    assert (lo, hi) == (64.0, 76.0) and current == 68.5
+    assert [v for v, _ in marks] == [rig.panel.thermostat.get("temperature")]
+
+
 def test_status_is_an_overview(alert_rig):
     rig = alert_rig
     assert rig.screen == "status"
