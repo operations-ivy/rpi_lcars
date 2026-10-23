@@ -3,8 +3,8 @@
 today's and tomorrow's events under it (a day with nothing left on isn't
 named) and the lock under those (not on a read-only panel); on the right, outside, the
 internet, the sun, the weather alerts and the Home Assistant link, each a
-label over its value; along the bottom, a headline (the news feed's top few
-in turn; not a link). The detail is a touch away."""
+label over its value; along the bottom, the forecast's next few periods in
+turn (or a news feed's headlines, if one is set; not links). The detail is a touch away."""
 from datasources.calendar import day_name
 from panel import lock as L
 from panel.thermostat import fmt_temp
@@ -85,17 +85,19 @@ class ScreenStatus(PanelScreen):
 
     def show_headline(self):
         p = self.panel
-        shown = p.headline()
-        if shown is None:
-            source, title = f"{p.cfg.NEWS_SOURCE} OFFLINE" if "news" in p.feeds else "", ""
+        shown, name = p.headline(), p.headline_source()
+        if shown is None or not name:
+            source, title = f"{name} OFFLINE" if name else "", ""
         else:
-            item, number, of = shown
-            source, title = f"{p.cfg.NEWS_SOURCE} {number}/{of}", item["title"]
+            title, number, of = shown
+            source = f"{name} {number}/{of}"
+        # An old forecast is greyed, like OUTSIDE.
+        colour = colours.GREY_BLUE if name == "FORECAST" and p.weather_stale() else colours.BEIGE
         # Sat on the bottom: a one-line headline takes the bottom line.
         lines = wrap(title, NEWS_SIZE, NEWS_WIDTH, NEWS_LINES)
         lines = [""] * (NEWS_LINES - len(lines)) + lines
         for label, line in zip(self.news, lines):
-            label.set(line)
+            label.set(line, colour)
         at = NEWS_LINES - sum(1 for line in lines if line)
         for i, label in enumerate(self.sources):
             label.set(source if i == at else "")

@@ -94,9 +94,11 @@ ALERTS_POLL_SECONDS = _float("LCARS_ALERTS_POLL_SECONDS", 30)
 # wigle-console's /api/status (empty: no WIGLE button). It takes ~10 s cold.
 WIGLE_URL = _str("LCARS_WIGLE_URL", "https://wigle.brick.nozdormu.cloud").rstrip("/")
 WIGLE_POLL_SECONDS = _float("LCARS_WIGLE_POLL_SECONDS", 120)
-# Headlines under the house average on STATUS: an RSS feed's top items, one
-# at a time (empty, the default: no headlines). Titles only, never links.
+# Along the bottom of STATUS, one at a time: the weather's next
+# FORECAST_PERIODS 12-hour periods (0: none), or instead an RSS feed's top
+# items when NEWS_URL is set (empty, the default). Titles only, never links.
 # The Guardian's US news was dropped (2026-10-22): too depressing.
+FORECAST_PERIODS = int(_float("LCARS_FORECAST_PERIODS", 4))
 NEWS_URL = _str("LCARS_NEWS_URL")
 NEWS_SOURCE = _str("LCARS_NEWS_SOURCE", "HEADLINES").upper()
 NEWS_POLL_SECONDS = _float("LCARS_NEWS_POLL_SECONDS", 900)

@@ -11,6 +11,17 @@ from panel import lock as L
 from panel.night import sun_times
 from ui.utils import sound
 
+def forecast_line(period):
+    """"TONIGHT: PARTLY CLOUDY, LOW 52°F, PRECIP 20%" for a forecast period."""
+    parts = [period.get("forecast") or ""]
+    temp = period.get("temperature")
+    if temp is not None:
+        parts.append(f"{'HIGH' if period.get('day') else 'LOW'} {round(temp)}°F")
+    if period.get("rain"):
+        parts.append(f"PRECIP {round(period['rain'])}%")
+    return f"{period.get('name') or ''}: " + ", ".join(p for p in parts if p)
+
+
 class Panel:
     def __init__(self, ha, lock, night, metrics, cfg=config, clock=time.monotonic, weather=None, room=None,
                  feeds=None, now=time.time):
@@ -59,14 +70,27 @@ class Panel:
         return infra.wigle(feed.data if feed else None, self.now())
 
     def headline(self):
-        """(item, number, of) for the headline to show now, each held for
-        NEWS_CYCLE_SECONDS; None before the feed has answered."""
+        """(text, number, of) for the line along the bottom of STATUS now,
+        each held for NEWS_CYCLE_SECONDS: the news feed's titles when there's
+        a feed, otherwise the forecast's periods. None before an answer."""
         feed = self.feeds.get("news")
-        items = (feed.data if feed else None) or []
+        if feed:
+            items = [item["title"] for item in feed.data or []]
+        else:
+            items = [forecast_line(p) for p in (self.weather.periods() if self.weather else [])]
+            items = items[:self.cfg.FORECAST_PERIODS]
         if not items:
             return None
         i = int(self.now() // self.cfg.NEWS_CYCLE_SECONDS) % len(items)
         return items[i], i + 1, len(items)
+
+    def headline_source(self):
+        """Whose lines they are ("FORECAST", or NEWS_SOURCE), or "" when
+        there's nothing to show at all."""
+        if "news" in self.feeds:
+            return self.cfg.NEWS_SOURCE
+        has_forecast = self.weather and self.weather.point and self.cfg.FORECAST_PERIODS
+        return "FORECAST" if has_forecast else ""
 
     # Touches and frames.
 
