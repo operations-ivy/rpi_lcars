@@ -590,6 +590,8 @@ def test_navigation_all_down_the_sidebar():
     lower = [rig.key(t) for t in ("RED ALERT", "WIGLE", "SHOPPING")]    # ALERTS named for the condition
     assert lower[0].rect.top == 249 and lower[-1].rect.bottom == 396
     assert "CLIMATE" not in [k.text for k in rig.sprites(LcarsKey)]    # THERMOSTAT is the controls
+    top_bar = [l.text for l in rig.sprites(LcarsLabel) if 56 <= l.rect.top < 97 and l.rect.left > 400]
+    assert len(top_bar) == 2 and top_bar[1].startswith("OUTSIDE ")      # the date, then outside, on its blocks
     rig.shot("17-status-nav")
     rig.tap(thermostat)
     assert rig.screen == "thermostat"
