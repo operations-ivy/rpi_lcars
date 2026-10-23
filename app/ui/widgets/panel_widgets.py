@@ -279,11 +279,13 @@ class LcarsArrow(_Pressable):
 
 class LcarsDelta(LcarsWidget):
     """A block with Starfleet's delta in black in its middle, a star cut into
-    it; drawn at four times the size and scaled down, for smooth edges."""
+    it and a ring around it; drawn at four times the size and scaled down,
+    for smooth edges."""
 
     # The delta in a unit box (x, y): the tip, a leg, the notch, the other leg.
     DELTA = [(0.5, 0), (1, 1), (0.5, 0.74), (0, 1)]
-    WIDTH, HEIGHT = 0.62, 0.72  # the delta's width over its height, its height over the block's
+    WIDTH, HEIGHT = 0.62, 0.58  # the delta's width over its height, its height over the block's
+    RING, RING_WIDTH = 0.45, 0.06  # the ring's radius and line, over the block's height
 
     def __init__(self, colour, pos, size):
         w, h = size
@@ -300,6 +302,7 @@ class LcarsDelta(LcarsWidget):
             v = pygame.math.Vector2(0, -(r if i % 2 == 0 else r * 0.3)).rotate(45 * i)
             star.append((cx + v.x, cy + v.y))
         pygame.draw.polygon(big, colour, star)
+        pygame.draw.circle(big, colours.BLACK, (w * 2, h * 2), h * 4 * self.RING, max(1, round(h * 4 * self.RING_WIDTH)))
         self.image = pygame.transform.smoothscale(big, size).convert()
         LcarsWidget.__init__(self, colour, pos, size)
 

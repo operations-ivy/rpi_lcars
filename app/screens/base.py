@@ -29,6 +29,8 @@ SIDEBAR = {
 # The sidebar's blocks go to the screens in order; the lower block is cut into
 # as many as are left, with the background's 4 px black gap between.
 GAP = 4
+# STATUS on the top bar, larger than the sidebar's text.
+STATUS_SIZE = 1.6
 CONDITION = {"RED": ("RED ALERT", colours.RED), "YELLOW": ("YELLOW ALERT", colours.GOLD),
              "GREEN": ("ALERTS", colours.BLUE), "UNKNOWN": ("ALERTS", colours.GREY_BLUE)}
 
@@ -89,7 +91,7 @@ class PanelScreen(LcarsScreen):
         pos, size = TOP_BAR["status"]
         self.nav_keys = {"status": self.add(LcarsKey(colours.BEIGE, pos, size, "STATUS",
                                                      None if here == "status" else self.go_status,
-                                                     align="corner"), layer=2)}
+                                                     text_size=STATUS_SIZE, align="corner"), layer=2)}
         self.add(LcarsDelta(colours.ORANGE, *TOP_BAR["delta"]), layer=2)
         # The background splits only the bar's upper row there: black the
         # whole gap between the two.
