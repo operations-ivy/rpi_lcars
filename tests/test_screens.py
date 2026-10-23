@@ -154,12 +154,15 @@ def test_title_top_right_with_running_numbers(rig):
     assert cascade.lines[:2] == before[1:]                              # a row on
 
 
-def test_status_ship_fills_the_right(rig):
-    from ui.widgets.msd import LcarsShip
+def test_status_ship_and_its_callouts(rig):
+    from ui.widgets.msd import PARTS, LcarsCallouts, LcarsShip
     ship = [s for s in rig.ui.all_sprites.sprites() if isinstance(s, LcarsShip)][0]
-    assert ship.rect.left == 600 and ship.rect.right <= 775 and ship.rect.height >= 240
+    assert ship.rect.left == 592 and ship.rect.right <= 775 and ship.rect.height >= 260
     labels = [l for l in rig.sprites(LcarsLabel) if l.rect.left == 470]
     assert labels and all(l.rect.right < ship.rect.left for l in labels)  # the readouts clear of it
+    assert len([s for s in rig.ui.all_sprites.sprites() if isinstance(s, LcarsCallouts)]) == 1
+    for name in PARTS:                                                   # every line ends on the ship
+        assert ship.rect.collidepoint(ship.part(name)), name
     texts = rig.texts()
     assert "73.4°F" in texts and "CLOUDY" in texts                      # outside: temperature, then condition
     assert "HOUSE AVERAGE" in texts

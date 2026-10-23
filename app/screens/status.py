@@ -3,25 +3,28 @@
 today's and tomorrow's events under it (a day with nothing left on isn't
 named) and the lock under those (not on a read-only panel); on the right, outside, the
 internet, the sun, the weather alerts and the Home Assistant link, each a
-label over its value, and beside them the Enterprise-D (a master systems
-display) filling the right; along the bottom, the forecast's next few periods in
+label over its value, spread down the right side with a line from each
+label to a part of the Enterprise-D beside them (a master systems display);
+along the bottom, the forecast's next few periods in
 turn (or a news feed's headlines, if one is set; not links). The detail is a touch away."""
 from datasources.calendar import day_name
 from panel import lock as L
 from panel.thermostat import fmt_temp
 from screens.base import BOTTOM, LEFT, RIGHT, TOP, PanelScreen
 from ui import colours
-from ui.widgets.msd import LcarsShip
+from ui.widgets.msd import LcarsCallouts, LcarsShip
 from ui.widgets.panel_widgets import LcarsHeader, LcarsLabel, drawable, wrap
 
-ROWS = ("OUTSIDE", "NETWORK", "SUN", "WEATHER ALERTS", "HOME ASSISTANT")
+# Each row, its top, and the part of the ship its label's line goes to.
+ROWS = {"OUTSIDE": (TOP + 5, "bow"), "NETWORK": (TOP + 73, "saucer"), "SUN": (TOP + 125, "impulse"),
+        "WEATHER ALERTS": (TOP + 177, "pylon"), "HOME ASSISTANT": (TOP + 229, "nacelle")}
 # The right column: each row a small label with its value under it (OUTSIDE
 # has the condition on a line of its own), then the ship to the frame's
-# right edge, as large as the room allows.
-COL_LABEL, ROW_TOP, ROW_HEIGHT, VALUE_DROP, VALUE_SIZE = 470, TOP + 10, 47, 19, 1.2
+# right edge, as large as the room allows; the lines bend at BEND_X.
+COL_LABEL, VALUE_DROP, VALUE_SIZE = 470, 19, 1.2
 CONDITION_DROP, CONDITION_SIZE = 42, 1.0
-SHIP_LEFT, SHIP_SIZE = 600, (175, 250)
-VALUE_WIDTH = SHIP_LEFT - COL_LABEL - 8
+SHIP_LEFT, SHIP_SIZE, BEND_X = 592, (183, 262), 584
+VALUE_WIDTH = BEND_X - COL_LABEL - 4
 # The headline along the bottom, the frame's full width: at most two lines,
 # the last on the bottom bar's line (the link is a row on this screen).
 NEWS_LINES, NEWS_SIZE, NEWS_HEIGHT, NEWS_WIDTH = 2, 1.1, 24, RIGHT - LEFT
@@ -72,17 +75,17 @@ class ScreenStatus(PanelScreen):
         self.news = [self.add(LcarsLabel(colours.BEIGE, (NEWS_TOP + i * NEWS_HEIGHT, LEFT), "", NEWS_SIZE))
                      for i in range(NEWS_LINES)]
 
-        self.add(LcarsShip((TOP + 5, SHIP_LEFT), SHIP_SIZE))
-        self.values, top = {}, ROW_TOP
-        for row in ROWS:
-            self.add(LcarsLabel(colours.PURPLE, (top, COL_LABEL), row, 1.0))
+        ship = self.add(LcarsShip((TOP + 5, SHIP_LEFT), SHIP_SIZE))
+        self.values, lines = {}, []
+        for row, (top, part) in ROWS.items():
+            label = self.add(LcarsLabel(colours.PURPLE, (top, COL_LABEL), row, 1.0))
             self.values[row] = self.add(LcarsLabel(colours.BLUE, (top + VALUE_DROP, COL_LABEL), "--", VALUE_SIZE,
                                                    max_width=VALUE_WIDTH))
             if row == "OUTSIDE":
                 self.condition = self.add(LcarsLabel(colours.BLUE, (top + CONDITION_DROP, COL_LABEL), "",
                                                      CONDITION_SIZE, max_width=VALUE_WIDTH))
-                top += CONDITION_DROP - VALUE_DROP
-            top += ROW_HEIGHT
+            lines.append(((label.rect.right + 6, label.rect.centery), BEND_X, ship.part(part)))
+        self.add(LcarsCallouts((COL_LABEL, TOP, RIGHT - COL_LABEL, BOTTOM - TOP), lines))
 
         self.agenda = [(self.add(LcarsLabel(colours.ORANGE, (AGENDA_TOP + i * AGENDA_STEP, LEFT), "", AGENDA_SIZE)),
                         self.add(LcarsLabel(colours.BLUE, (AGENDA_TOP + i * AGENDA_STEP, LEFT + AGENDA_TIME), "",
