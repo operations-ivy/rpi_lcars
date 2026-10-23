@@ -2,7 +2,8 @@
 LCARS draws it: one translucent orange, a bright outline, the saucer gridded
 with rings and spokes round its raised centre, a chevron lattice down the
 engineering hull, the nacelles wide on swept pylons, a faint blueprint grid
-behind; and callout lines from labels to named parts of it. Drawn once, in
+behind; with room below it, a side view too, as LCARS pairs them; and
+callout lines from labels to named parts of it. Drawn once, in
 code (no image), at three times the size and scaled down for smooth edges."""
 import math
 
@@ -15,13 +16,17 @@ from ui.widgets.sprite import LcarsWidget
 # The ship's beam and length, in units of its own (proportions taken from
 # top views: the saucer wider than long, nacelles a quarter of the beam out).
 BEAM, LENGTH = 600, 775
-# Named parts callouts can point at, top to bottom (ship units).
+# The side view, bow to the right: X forward from the nacelles' aft end
+# (LENGTH at the bow), Z down; its height.
+SIDE_HEIGHT = 175
+SIDE_GAP = 20  # px between the views
+# Named parts callouts can point at, top to bottom: (view, x, y).
 PARTS = {
-    "bow": (0, 30),
-    "saucer": (-270, 320),
-    "impulse": (-125, 440),
-    "pylon": (-95, 540),
-    "nacelle": (-153, 730),
+    "bow": ("top", 0, 30),
+    "saucer": ("top", -270, 320),
+    "impulse": ("top", -125, 440),
+    "nacelle": ("top", -153, 730),
+    "hull": ("side", 95, 140),
 }
 SCALE = 3  # drawn this many times larger, then smoothed down
 
@@ -36,8 +41,16 @@ BLUEPRINT = (24, 28, 44)        # the grid behind
 class LcarsShip(LcarsWidget):
     def __init__(self, pos, size):
         w, h = size
-        self.k = min(w / BEAM, h / LENGTH)
-        self.offset = ((w - BEAM * self.k) / 2, (h - LENGTH * self.k) / 2)
+        self.k = k = min(w / BEAM, h / LENGTH)
+        top_h = LENGTH * k
+        # The side view when there's room for it below, the two centred
+        # together; else the top view alone, centred.
+        self.side_k = w / (LENGTH + 10)
+        side_h = SIDE_HEIGHT * self.side_k
+        self.has_side = h - top_h >= side_h + SIDE_GAP
+        used = top_h + (SIDE_GAP + side_h if self.has_side else 0)
+        self.offset = ((w - BEAM * k) / 2, (h - used) / 2)
+        self.side_offset = ((w - LENGTH * self.side_k) / 2, self.offset[1] + top_h + SIDE_GAP)
         big = pygame.Surface((w * SCALE, h * SCALE))
         big.fill(colours.BLACK)
         self.draw(big)
@@ -49,9 +62,14 @@ class LcarsShip(LcarsWidget):
         pixels on the drawing surface."""
         return ((self.offset[0] + (x + BEAM / 2) * self.k) * SCALE, (self.offset[1] + y * self.k) * SCALE)
 
+    def side_at(self, x, z):
+        """Side view units -> pixels on the drawing surface."""
+        return ((self.side_offset[0] + x * self.side_k) * SCALE, (self.side_offset[1] + z * self.side_k) * SCALE)
+
     def part(self, name):
         """A named part's position on the screen."""
-        x, y = self.at(*PARTS[name])
+        view, a, b = PARTS[name]
+        x, y = (self.at if view == "top" else self.side_at)(a, b)
         return round(self.rect.left + x / SCALE), round(self.rect.top + y / SCALE)
 
     def draw(self, s):
@@ -126,6 +144,41 @@ class LcarsShip(LcarsWidget):
         label = font(0.62 * SCALE * self.k / 0.3).render("NCC-1701-D", True, LINE)
         label = pygame.transform.rotate(label, -90)
         s.blit(label, label.get_rect(center=at(196, cy)))
+        if self.has_side:
+            self.draw_side(s, thick, thin)
+
+    def draw_side(self, s, thick, thin):
+        at, k = self.side_at, self.side_k * SCALE
+
+        def shape(points, fill=FILL, line=LINE):
+            pts = [at(x, z) for x, z in points]
+            pygame.draw.polygon(s, fill, pts)
+            pygame.draw.polygon(s, line, pts, thick)
+
+        # Nacelles high at the back, pylons down to the hull.
+        x, z = at(0, 28)
+        rect = (x, z, 320 * k, 36 * k)
+        pygame.draw.rect(s, FILL, rect, border_radius=round(18 * k))
+        pygame.draw.rect(s, LINE, rect, thick, border_radius=round(18 * k))
+        x, z = at(262, 31)
+        pygame.draw.rect(s, BRIGHT, (x, z, 54 * k, 30 * k), border_radius=round(15 * k))   # Bussard
+        pygame.draw.line(s, GRID, at(20, 46), at(250, 46), thin)
+        shape([(50, 62), (130, 62), (210, 112), (150, 112)])
+        # The engineering hull, the deflector at its front, the neck up to
+        # the saucer.
+        shape([(300, 110), (410, 110), (520, 60), (440, 60)])
+        shape([(55, 122), (85, 106), (418, 106), (448, 126), (442, 150), (402, 166), (92, 166), (55, 146)])
+        for z in (128, 146):
+            pygame.draw.line(s, GRID, at(80, z), at(400, z), thin)
+        x, z = at(412, 116)
+        pygame.draw.ellipse(s, BRIGHT, (x, z, 28 * k, 36 * k))                   # the deflector
+        # The saucer, thin, its impulse deck at the back, the bridge on top.
+        shape([(305, 50), (335, 46), (335, 64), (305, 62)])
+        shape([(325, 52), (400, 38), (500, 28), (600, 25), (700, 33), (775, 50), (770, 56), (700, 63),
+               (560, 69), (420, 67), (325, 60)])
+        pygame.draw.line(s, GRID, at(345, 50), at(760, 50), thin)
+        x, z = at(545, 15)
+        pygame.draw.ellipse(s, BRIGHT, (x, z, 34 * k, 14 * k))                   # the bridge
 
 
 class LcarsCallouts(LcarsWidget):

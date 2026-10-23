@@ -688,10 +688,12 @@ def test_status_cycles_the_forecast_without_a_news_feed():
     start = int(NOW // 15) * 15
     clock["t"] = start
     rig.tick()
-    texts = rig.texts()
-    assert "FORECAST 1/2" in texts and "TODAY: CHANCE RAIN SHOWERS, HIGH 72°F, PRECIP 27%" in texts
-    line = [l for l in rig.sprites(LcarsLabel) if l.text.startswith("TODAY:")][0]
-    assert line.rect.left == 140 and line.rect.top == 410               # along the bottom
+    labels = {l.text: l for l in rig.sprites(LcarsLabel) if l.text}
+    first = [l for t, l in labels.items() if t.startswith("TODAY:")][0]
+    second = [l for l in rig.sprites(LcarsLabel) if l.rect.top == 410 and l.rect.left == 140 and l.text][0]
+    assert f"{first.text} {second.text}" == "TODAY: CHANCE RAIN SHOWERS, HIGH 72°F, PRECIP 27%"  # two lines
+    assert first.rect.top == 386 and labels["FORECAST 1/2"].rect.top == 362
+    assert max(first.rect.right, second.rect.right) <= 450              # the left side only: the ship has the right
     rig.shot("24-status-forecast")
     clock["t"] = start + 15
     rig.tick()

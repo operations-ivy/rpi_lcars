@@ -16,22 +16,24 @@ from ui.widgets.msd import LcarsCallouts, LcarsShip
 from ui.widgets.panel_widgets import LcarsHeader, LcarsLabel, drawable, wrap
 
 # Each row, its top, and the part of the ship its label's line goes to.
-ROWS = {"OUTSIDE": (TOP + 5, "bow"), "NETWORK": (TOP + 73, "saucer"), "SUN": (TOP + 125, "impulse"),
-        "WEATHER ALERTS": (TOP + 177, "pylon"), "HOME ASSISTANT": (TOP + 229, "nacelle")}
+ROWS = {"OUTSIDE": (TOP + 5, "bow"), "NETWORK": (TOP + 73, "saucer"), "SUN": (TOP + 144, "impulse"),
+        "WEATHER ALERTS": (TOP + 215, "nacelle"), "HOME ASSISTANT": (TOP + 286, "hull")}
 # The right column: each row a small label with its value under it (OUTSIDE
 # has the condition on a line of its own), then the ship to the frame's
-# right edge, as large as the room allows; the lines bend at BEND_X.
+# right edge and down to the bottom (a side view under the top one); the
+# lines bend at BEND_X.
 COL_LABEL, VALUE_DROP, VALUE_SIZE = 470, 19, 1.2
 CONDITION_DROP, CONDITION_SIZE = 42, 1.0
-SHIP_LEFT, SHIP_SIZE, BEND_X = 592, (183, 262), 584
+SHIP_LEFT, SHIP_SIZE, BEND_X = 592, (183, BOTTOM - TOP - 5), 584
 VALUE_WIDTH = BEND_X - COL_LABEL - 4
-# The headline along the bottom, the frame's full width: at most two lines,
-# the last on the bottom bar's line (the link is a row on this screen).
-NEWS_LINES, NEWS_SIZE, NEWS_HEIGHT, NEWS_WIDTH = 2, 1.1, 24, RIGHT - LEFT
+# The headline along the bottom of the left side (the ship has the right):
+# at most two lines, the last on the bottom bar's line (the link is a row on
+# this screen). As wide as the events above it.
+NEWS_LINES, NEWS_SIZE, NEWS_HEIGHT = 2, 1.1, 24
 NEWS_TOP = BOTTOM - 25 - (NEWS_LINES - 1) * NEWS_HEIGHT
 # Under the average: the events, a line each under its day's name, then the
 # lock and its hint (not read-only: it takes the last two lines' room).
-LEFT_WIDTH = COL_LABEL - LEFT - 20
+LEFT_WIDTH = NEWS_WIDTH = COL_LABEL - LEFT - 20
 AGENDA_TOP, AGENDA_STEP, AGENDA_SIZE, AGENDA_LINES, AGENDA_TIME = TOP + 165, 21, 1.0, 4, 90
 LOCK_TOP = AGENDA_TOP + 2 * AGENDA_STEP + 4
 
