@@ -3,7 +3,7 @@ last played while it's off), from Home Assistant's PlayStation Network
 integration. Read-only, open to anyone."""
 from screens.base import LEFT, RIGHT, TOP, PanelScreen
 from ui import colours
-from ui.widgets.panel_widgets import LcarsLabel, LcarsPicture
+from ui.widgets.panel_widgets import LcarsHeader, LcarsLabel, LcarsPicture
 
 PICTURE = 280  # the art's square box
 TEXT_X = LEFT + PICTURE + 30
@@ -18,7 +18,7 @@ class ScreenMedia(PanelScreen):
     def build(self):
         self.nav()
         self.picture = self.add(LcarsPicture((TOP + 10, LEFT), (PICTURE, PICTURE)))
-        self.add(LcarsLabel(colours.ORANGE, (TOP + 10, TEXT_X), "PLAYSTATION 5", 1.5))
+        self.add(LcarsHeader(colours.ORANGE, (TOP + 10, TEXT_X), RIGHT - TEXT_X, "PLAYSTATION 5", 1.5))
         self.state = self.add(LcarsLabel(colours.BEIGE, (TOP + 45, TEXT_X), "--", 3))
         self.caption = self.add(LcarsLabel(colours.PURPLE, (TOP + 130, TEXT_X), "", 1.2))
         self.game = self.add(LcarsLabel(colours.BLUE, (TOP + 160, TEXT_X), "", 1.4, max_width=RIGHT - TEXT_X))

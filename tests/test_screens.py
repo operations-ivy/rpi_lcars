@@ -17,7 +17,7 @@ from panel.lock import PanelLock
 from panel.night import Night
 from screens.status import ScreenStatus
 from ui.ui import UserInterface
-from ui.widgets.panel_widgets import LcarsArrow, LcarsKey, LcarsLabel
+from ui.widgets.panel_widgets import LcarsArrow, LcarsHeader, LcarsKey, LcarsLabel
 from test_weather import FakeWeb, make as make_weather
 
 APP = Path(__file__).resolve().parent.parent / "app"
@@ -102,7 +102,7 @@ class Rig:
         return matches[0]
 
     def texts(self):
-        return [s.text for s in self.sprites(LcarsLabel)]
+        return [s.text for s in self.sprites((LcarsLabel, LcarsHeader))]
 
     def tap(self, sprite_or_pos):
         pos = sprite_or_pos.rect.center if hasattr(sprite_or_pos, "rect") else sprite_or_pos
@@ -140,11 +140,49 @@ def alert_rig():
     return Rig()
 
 
+def test_title_top_right_with_running_numbers(rig):
+    title = [l for l in rig.sprites(LcarsLabel) if l.text == "STATUS REPORT"][0]
+    assert title.rect.right == 783 and title.rect.top == 0
+    cascade = rig.ui.screen.cascade
+    assert cascade.rect.left == 135 and cascade.rect.right < title.rect.left
+    before = list(cascade.lines)
+    rig.clock.t += 0.5
+    rig.tick()
+    assert cascade.lines == before                                      # not yet
+    rig.clock.t += 1
+    rig.tick()
+    assert cascade.lines[:2] == before[1:]                              # a row on
+
+
+def test_status_ship_and_its_callouts(rig):
+    from ui.widgets.msd import PARTS, LcarsCallouts, LcarsShip
+    ship = [s for s in rig.ui.all_sprites.sprites() if isinstance(s, LcarsShip)][0]
+    assert ship.rect.left == 592 and ship.rect.right <= 775 and ship.rect.height >= 260
+    labels = [l for l in rig.sprites(LcarsLabel) if l.rect.left == 470]
+    assert labels and all(l.rect.right < ship.rect.left for l in labels)  # the readouts clear of it
+    assert len([s for s in rig.ui.all_sprites.sprites() if isinstance(s, LcarsCallouts)]) == 1
+    for name in PARTS:                                                   # every line ends on the ship
+        assert ship.rect.collidepoint(ship.part(name)), name
+    texts = rig.texts()
+    assert "73.4°F" in texts and "CLOUDY" in texts                      # outside: temperature, then condition
+    assert "HOUSE AVERAGE" in texts
+    rig.shot("25-status-ship")
+
+
+def test_thermostat_scale(rig):
+    from ui.widgets.panel_widgets import LcarsGauge
+    rig.tap(rig.key("THERMOSTAT"))
+    gauge = [s for s in rig.ui.all_sprites.sprites() if isinstance(s, LcarsGauge)][0]
+    lo, hi, current, marks = gauge.drawn
+    assert (lo, hi) == (64.0, 76.0) and current == 68.5
+    assert [v for v, _ in marks] == [rig.panel.thermostat.get("temperature")]
+
+
 def test_status_is_an_overview(alert_rig):
     rig = alert_rig
     assert rig.screen == "status"
     texts = rig.texts()
-    for expected in ("HOUSE AVERAGE", "NO UPSTAIRS SENSOR", "73.4°F CLOUDY",
+    for expected in ("HOUSE AVERAGE", "NO UPSTAIRS SENSOR", "73.4°F", "CLOUDY",
                      "ONLINE", "SETS 18:24", "--",
                      "WEATHER ALERTS", "FLOOD WATCH", "HOME ASSISTANT", "NOMINAL"):
         assert expected in texts, expected
@@ -587,15 +625,12 @@ def test_navigation_top_bar_and_sidebar():
     status, thermostat = rig.key("STATUS"), rig.key("THERMOSTAT")
     assert status.rect.top == 56                                        # on the top bar
     assert thermostat.rect.top == 145                                   # the big sidebar block
-    assert all(k.rect.left == 16 for k in rig.sprites(LcarsKey) if k is not status)   # the rest on the left
+    assert all(k.rect.left == 16 for k in rig.sprites(LcarsKey) if k.rect.top != 56)  # the rest on the left
     assert rig.key("RED ALERT").rect.top == 211                         # named for the condition
     lower = [rig.key(t) for t in ("WIGLE", "SHOPPING", "PS5")]
     assert lower[0].rect.top == 249 and lower[-1].rect.bottom == 396
     assert "CLIMATE" not in [k.text for k in rig.sprites(LcarsKey)]    # THERMOSTAT is the controls
-    surface = rig.ui.screenSurface
-    block = [surface.get_at((x, y))[:3] for x in range(563, 742) for y in range(56, 97)]
-    black = sum(1 for c in block if c == (0, 0, 0))
-    assert 100 < black < 600 and block[0] == (255, 153, 0)              # the delta, small, black on orange
+    assert "NCC-1701-D" in [k.text for k in rig.sprites(LcarsKey)]     # the registry beside STATUS
     rig.shot("17-status-nav")
     rig.tap(thermostat)
     assert rig.screen == "thermostat"
@@ -653,10 +688,12 @@ def test_status_cycles_the_forecast_without_a_news_feed():
     start = int(NOW // 15) * 15
     clock["t"] = start
     rig.tick()
-    texts = rig.texts()
-    assert "FORECAST 1/2" in texts and "TODAY: CHANCE RAIN SHOWERS, HIGH 72°F, PRECIP 27%" in texts
-    line = [l for l in rig.sprites(LcarsLabel) if l.text.startswith("TODAY:")][0]
-    assert line.rect.left == 140 and line.rect.top == 410               # along the bottom
+    labels = {l.text: l for l in rig.sprites(LcarsLabel) if l.text}
+    first = [l for t, l in labels.items() if t.startswith("TODAY:")][0]
+    second = [l for l in rig.sprites(LcarsLabel) if l.rect.top == 410 and l.rect.left == 140 and l.text][0]
+    assert f"{first.text} {second.text}" == "TODAY: CHANCE RAIN SHOWERS, HIGH 72°F, PRECIP 27%"  # two lines
+    assert first.rect.top == 386 and labels["FORECAST 1/2"].rect.top == 362
+    assert max(first.rect.right, second.rect.right) <= 450              # the left side only: the ship has the right
     rig.shot("24-status-forecast")
     clock["t"] = start + 15
     rig.tick()

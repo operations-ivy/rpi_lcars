@@ -10,7 +10,7 @@ they are."""
 from datasources import calendar as cal
 from screens.base import BOTTOM, LEFT, RIGHT, TOP, PanelScreen
 from ui import colours
-from ui.widgets.panel_widgets import LcarsCell, LcarsKey, LcarsLabel, drawable, wrap
+from ui.widgets.panel_widgets import LcarsCell, LcarsHeader, LcarsKey, LcarsLabel, drawable, wrap
 
 # The month: its name and the keys along the top, the weekdays, then the grid.
 HEAD_SIZE, KEY_W, KEY_H = 1.3, 95, 28
@@ -58,7 +58,7 @@ class ScreenCalendar(PanelScreen):
 
     def key(self, text, right, handler):
         return self.add(LcarsKey(colours.ORANGE, (TOP + 2, RIGHT - right), (KEY_W, KEY_H), text, handler,
-                                 text_size=0.9), layer=2)
+                                 text_size=0.9, pill=True), layer=2)
 
     def shown(self):
         """(events, stale), or None with the reason in the message line."""
@@ -169,7 +169,7 @@ class ScreenCalendar(PanelScreen):
             step = int(19 * size) + 2
             if top + 20 + step > GRID_BOTTOM:
                 break
-            self.add(LcarsLabel(colours.PURPLE, (top, LEFT), label, 1.0))
+            self.add(LcarsHeader(colours.PURPLE, (top, LEFT), width, label, 1.0))
             top += 20
             room = (GRID_BOTTOM - top) // step if most is None else most
             lines = []

@@ -4,7 +4,7 @@ wigle-console's /api/status. Read-only, open to anyone."""
 from panel.infra import ago, number, size, until
 from screens.base import LEFT, RIGHT, TOP, PanelScreen
 from ui import colours
-from ui.widgets.panel_widgets import LcarsLabel
+from ui.widgets.panel_widgets import LcarsHeader, LcarsLabel
 
 RIGHT_X, VALUE_X = 470, 610
 ACCOUNT_ROWS = ("WI-FI", "BLUETOOTH", "LOCATIONS", "THIS MONTH")
@@ -18,7 +18,7 @@ class ScreenWigle(PanelScreen):
 
     def build(self):
         self.nav()
-        self.add(LcarsLabel(colours.ORANGE, (TOP + 10, LEFT), "WIGLE RANK", 1.5))
+        self.add(LcarsHeader(colours.ORANGE, (TOP + 10, LEFT), RIGHT_X - LEFT - 24, "WIGLE RANK", 1.5))
         self.rank = self.add(LcarsLabel(colours.BEIGE, (TOP + 32, LEFT), "--", 4))
         self.month_rank = self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 112, LEFT), "", 1.1))
         self.account = {}
@@ -27,7 +27,7 @@ class ScreenWigle(PanelScreen):
             self.add(LcarsLabel(colours.PURPLE, (top, LEFT), row, 1.1))
             self.account[row] = self.add(LcarsLabel(colours.BLUE, (top, LEFT + 130), "--", 1.1))
 
-        self.add(LcarsLabel(colours.ORANGE, (TOP + 10, RIGHT_X), "SYNC", 1.5))
+        self.add(LcarsHeader(colours.ORANGE, (TOP + 10, RIGHT_X), RIGHT - RIGHT_X, "SYNC", 1.5))
         self.sync = {}
         for i, row in enumerate(SYNC_ROWS):
             top = TOP + 45 + i * ROW_HEIGHT

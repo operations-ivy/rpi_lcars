@@ -6,7 +6,7 @@ from panel import lock as L
 from screens.base import LEFT, TOP, PanelScreen
 from ui import colours
 from ui.utils.sound import Sound
-from ui.widgets.panel_widgets import LcarsDots, LcarsKey, LcarsLabel
+from ui.widgets.panel_widgets import LcarsDots, LcarsHeader, LcarsKey, LcarsLabel
 
 MAX_DIGITS = 8
 KEY_SIZE = (100, 62)
@@ -20,7 +20,7 @@ class ScreenAuthorize(PanelScreen):
     def build(self):
         self.nav(("SECURED", None, colours.PEACH))
 
-        self.add(LcarsLabel(colours.ORANGE, (TOP + 10, LEFT), "ENTER CODE", 1.5))
+        self.add(LcarsHeader(colours.ORANGE, (TOP + 10, LEFT), KEY_LEFT - LEFT - 24, "ENTER CODE", 1.5))
         self.dots = self.add(LcarsDots(colours.BEIGE, (TOP + 60, LEFT + 2), MAX_DIGITS))
         self.message = self.add(LcarsLabel(colours.BLUE, (TOP + 110, LEFT), "", 1.3))
         self.detail = self.add(LcarsLabel(colours.GREY_BLUE, (TOP + 145, LEFT), "", 1.0))
@@ -32,11 +32,11 @@ class ScreenAuthorize(PanelScreen):
             row, col = divmod(i, 3)
             pos = (TOP + 5 + row * (KEY_SIZE[1] + KEY_GAP), KEY_LEFT + col * (KEY_SIZE[0] + KEY_GAP))
             if label == "CLEAR":
-                key = LcarsKey(colours.RED_BROWN, pos, KEY_SIZE, label, self.clear)
+                key = LcarsKey(colours.RED_BROWN, pos, KEY_SIZE, label, self.clear, pill=True)
             elif label == "ENTER":
-                key = LcarsKey(colours.GOLD, pos, KEY_SIZE, label, self.enter)
+                key = LcarsKey(colours.GOLD, pos, KEY_SIZE, label, self.enter, pill=True)
             else:
-                key = LcarsKey(colours.GREY_BLUE, pos, KEY_SIZE, label, self.digit, text_size=1.8)
+                key = LcarsKey(colours.GREY_BLUE, pos, KEY_SIZE, label, self.digit, text_size=1.8, pill=True)
             self.keys.append(self.add(key, layer=2))
 
         self.code = ""

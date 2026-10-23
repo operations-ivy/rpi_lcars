@@ -155,15 +155,19 @@ class _Pressable(LcarsWidget):
 
 class LcarsKey(_Pressable):
     """A flat block with its label centred, or bottom right like the stock
-    sidebar blocks (align="corner")."""
+    sidebar blocks (align="corner"); pill=True rounds both ends."""
 
-    def __init__(self, colour, pos, size, text, handler=None, text_size=1.0, align="center"):
-        self.text, self.font, self.align = text, font(text_size), align
+    def __init__(self, colour, pos, size, text, handler=None, text_size=1.0, align="center", pill=False):
+        self.text, self.font, self.align, self.pill = text, font(text_size), align, pill
         _Pressable.__init__(self, colour, pos, size, handler)
 
     def draw(self, surface, colour):
-        surface.fill(colour)
         w, h = surface.get_size()
+        if self.pill:
+            surface.fill(colours.BLACK)
+            pygame.draw.rect(surface, colour, (0, 0, w, h), border_radius=h // 2)
+        else:
+            surface.fill(colour)
         text = self.text
         if self.align == "left":
             # A rounded bar with the text from its left end, cut to fit.
@@ -175,7 +179,7 @@ class LcarsKey(_Pressable):
                 text = text.rstrip() + "..."
         label = self.font.render(text, True, colours.BLACK)
         if self.align == "corner":
-            rect = label.get_rect(bottomright=(w - 8, h - 2))
+            rect = label.get_rect(bottomright=(w - (h // 2 if self.pill else 8), h - 2))
         elif self.align == "left":
             rect = label.get_rect(midleft=(h // 2, h // 2))
         else:
@@ -277,39 +281,6 @@ class LcarsArrow(_Pressable):
         pygame.draw.polygon(surface, colours.BLACK, [(cx, tip), (cx - half, base), (cx + half, base)])
 
 
-class LcarsDelta(LcarsWidget):
-    """A block with Starfleet's delta in black in its middle, a star cut into
-    it and a ring around it; drawn at four times the size and scaled down,
-    for smooth edges."""
-
-    # The delta in a unit box (x, y): the tip, a leg, the notch, the other leg.
-    DELTA = [(0.5, 0), (1, 1), (0.5, 0.74), (0, 1)]
-    WIDTH, HEIGHT = 0.62, 0.58  # the delta's width over its height, its height over the block's
-    RING, RING_WIDTH = 0.45, 0.06  # the ring's radius and line, over the block's height
-
-    def __init__(self, colour, pos, size):
-        w, h = size
-        big = pygame.Surface((w * 4, h * 4))
-        big.fill(colour)
-        dh = h * 4 * self.HEIGHT
-        dw = dh * self.WIDTH
-        x0, y0 = (w * 4 - dw) / 2, (h * 4 - dh) / 2
-        pygame.draw.polygon(big, colours.BLACK, [(x0 + x * dw, y0 + y * dh) for x, y in self.DELTA])
-        # A four-pointed star, its points long and its waist narrow.
-        cx, cy, r = x0 + dw / 2, y0 + dh * 0.56, dh * 0.13
-        star = []
-        for i in range(8):
-            v = pygame.math.Vector2(0, -(r if i % 2 == 0 else r * 0.3)).rotate(45 * i)
-            star.append((cx + v.x, cy + v.y))
-        pygame.draw.polygon(big, colour, star)
-        pygame.draw.circle(big, colours.BLACK, (w * 2, h * 2), h * 4 * self.RING, max(1, round(h * 4 * self.RING_WIDTH)))
-        self.image = pygame.transform.smoothscale(big, size).convert()
-        LcarsWidget.__init__(self, colour, pos, size)
-
-    def handleEvent(self, event, clock):
-        return False
-
-
 class LcarsDots(LcarsWidget):
     """How many digits are in: a row of drawn dots, one hollow slot per
     digit still allowed."""
@@ -331,6 +302,154 @@ class LcarsDots(LcarsWidget):
         for i in range(self.slots):
             centre = (r + i * (2 * r + self.gap), r + 1)
             pygame.draw.circle(self.image, colour, centre, r, 0 if i < count else 2)
+
+    def handleEvent(self, event, clock):
+        return False
+
+
+class LcarsHeader(LcarsWidget):
+    """A section's name with a bar running on from it to width, rounded at
+    its far end: how LCARS heads a group instead of bare text."""
+
+    BAR = 0.45  # the bar's height over the capitals'
+
+    def __init__(self, colour, pos, width, text="", size=1.0, bar_colour=None):
+        self.colour, self.bar_colour, self.width = colour, bar_colour, width
+        self.font, self.text = font(size), None
+        self.image = pygame.Surface((width, self.font.get_height())).convert()
+        LcarsWidget.__init__(self, colour, pos, None)
+        self.set(text)
+
+    def set(self, text, colour=None):
+        colour = colour or self.colour
+        if (text, colour) == (self.text, getattr(self, "_drawn", None)):
+            return
+        self.text, self._drawn = text, colour
+        f, w = self.font, self.width
+        self.image.fill(colours.BLACK)
+        label = f.render(text, True, colour)
+        self.image.blit(label, (0, 0))
+        start = label.get_width() + 10 if text else 0
+        # On the capitals' middle: the ascent has room above them.
+        bar = max(4, round(f.get_ascent() * self.BAR))
+        middle = round(f.get_ascent() * 0.58)
+        if w - start > bar:
+            pygame.draw.rect(self.image, self.bar_colour or colour, (start, middle - bar // 2, w - start, bar),
+                             border_top_right_radius=bar // 2, border_bottom_right_radius=bar // 2)
+
+    def handleEvent(self, event, clock):
+        return False
+
+
+class LcarsCascade(LcarsWidget):
+    """The running block of numbers LCARS fills its spare corners with: a few
+    rows of columns of digits, a new row arriving every interval and the top
+    one leaving. Decoration only; seeded, so a screenshot is repeatable."""
+
+    COLOURS = (colours.ORANGE, colours.ORANGE, colours.BEIGE, colours.GOLD, colours.WHITE)
+
+    def __init__(self, pos, size, rows=3, text_size=0.7, interval=1.0, seed=1701):
+        import random
+        self.random = random.Random(seed)
+        self.font, self.rows, self.interval = font(text_size), rows, interval
+        w, h = size
+        digit = self.font.size("0")[0]
+        # Columns of 2 to 7 digits, a space apart, as many as fit.
+        self.widths, x = [], 0
+        while True:
+            n = self.random.choice((2, 4, 4, 4, 3, 7))
+            if x + n * digit > w:
+                break
+            self.widths.append(n)
+            x += (n + 1) * digit
+        self.digit = digit
+        self.lines = [self.row() for _ in range(rows)]
+        self.image = pygame.Surface(size).convert()
+        self.last = None
+        LcarsWidget.__init__(self, colours.BLACK, pos, None)
+        self.redraw()
+
+    def row(self):
+        r = self.random
+        cells = []
+        for n in self.widths:
+            shown = r.randint(1, n) if r.random() < 0.3 else n  # some columns short, right-aligned
+            cells.append(("".join(str(r.randint(0, 9)) for _ in range(shown)), r.choice(self.COLOURS)))
+        return cells
+
+    def redraw(self):
+        self.image.fill(colours.BLACK)
+        step = self.font.get_ascent() + 2
+        for y, cells in enumerate(self.lines):
+            x = 0
+            for n, (text, colour) in zip(self.widths, cells):
+                label = self.font.render(text, True, colour)
+                self.image.blit(label, (x + n * self.digit - label.get_width(), y * step))
+                x += (n + 1) * self.digit
+
+    def tick(self, now):
+        """Move on a row when interval has passed since the last."""
+        if self.last is None:
+            self.last = now
+        elif now - self.last >= self.interval:
+            self.last = now
+            self.lines = self.lines[1:] + [self.row()]
+            self.redraw()
+
+    def handleEvent(self, event, clock):
+        return False
+
+
+class LcarsGauge(LcarsWidget):
+    """A vertical scale in a bracket, like LCARS's: whole degrees from two
+    below the low guardrail to two above the high, the guardrails' range
+    lit gold, a bar across it at each setpoint (orange heat, blue cool) and
+    an oval at the current reading."""
+
+    def __init__(self, pos, size):
+        self.image = pygame.Surface(size).convert()
+        self.drawn = None
+        LcarsWidget.__init__(self, colours.BLACK, pos, None)
+        self.set(None, None, None, ())
+
+    def set(self, lo, hi, current, marks):
+        """marks: (value, colour) for each setpoint."""
+        key = (lo, hi, current, tuple(marks))
+        if key == self.drawn:
+            return
+        self.drawn = key
+        s = self.image
+        s.fill(colours.BLACK)
+        w, h = s.get_size()
+        arm, pad = 12, 16
+        # The bracket: a bar down the left, arms along the top and bottom.
+        pygame.draw.rect(s, colours.PEACH, (0, 0, arm, h), border_top_left_radius=arm, border_bottom_left_radius=arm)
+        pygame.draw.rect(s, colours.PEACH, (0, 0, 44, 8), border_top_left_radius=arm, border_top_right_radius=4)
+        pygame.draw.rect(s, colours.PEACH, (0, h - 8, 44, 8), border_bottom_left_radius=arm,
+                         border_bottom_right_radius=4)
+        if lo is None or hi is None:
+            return
+        vmin, vmax = int(lo) - 2, int(hi) + 2
+
+        def y(v):
+            return round(pad + (vmax - v) / (vmax - vmin) * (h - 2 * pad))
+        f = font(0.85)
+        for v in range(vmin, vmax + 1):
+            inside = lo <= v <= hi
+            top = y(v + 0.5) if v < vmax else y(v)
+            bottom = y(v - 0.5) if v > vmin else y(v)
+            pygame.draw.rect(s, colours.GOLD if inside else colours.RED_BROWN, (18, top + 1, 10, bottom - top - 1))
+            long = v % 2 == 0
+            pygame.draw.line(s, colours.ORANGE, (31, y(v)), (31 + (10 if long else 5), y(v)), 2)
+            if long:
+                label = f.render(str(v), True, colours.BLUE)
+                s.blit(label, label.get_rect(midleft=(46, y(v))))
+        for value, colour in marks:
+            if value is not None and vmin <= value <= vmax:
+                pygame.draw.rect(s, colour, (14, y(value) - 3, 30, 6), border_radius=3)
+        if current is not None:
+            yc = y(min(max(current, vmin), vmax))
+            pygame.draw.ellipse(s, colours.BEIGE, (w - 30, yc - 7, 26, 14))
 
     def handleEvent(self, event, clock):
         return False
