@@ -17,7 +17,7 @@ from panel.lock import PanelLock
 from panel.night import Night
 from screens.status import ScreenStatus
 from ui.ui import UserInterface
-from ui.widgets.panel_widgets import LcarsArrow, LcarsKey, LcarsLabel
+from ui.widgets.panel_widgets import LcarsArrow, LcarsHeader, LcarsKey, LcarsLabel
 from test_weather import FakeWeb, make as make_weather
 
 APP = Path(__file__).resolve().parent.parent / "app"
@@ -102,7 +102,7 @@ class Rig:
         return matches[0]
 
     def texts(self):
-        return [s.text for s in self.sprites(LcarsLabel)]
+        return [s.text for s in self.sprites((LcarsLabel, LcarsHeader))]
 
     def tap(self, sprite_or_pos):
         pos = sprite_or_pos.rect.center if hasattr(sprite_or_pos, "rect") else sprite_or_pos
@@ -587,15 +587,12 @@ def test_navigation_top_bar_and_sidebar():
     status, thermostat = rig.key("STATUS"), rig.key("THERMOSTAT")
     assert status.rect.top == 56                                        # on the top bar
     assert thermostat.rect.top == 145                                   # the big sidebar block
-    assert all(k.rect.left == 16 for k in rig.sprites(LcarsKey) if k is not status)   # the rest on the left
+    assert all(k.rect.left == 16 for k in rig.sprites(LcarsKey) if k.rect.top != 56)  # the rest on the left
     assert rig.key("RED ALERT").rect.top == 211                         # named for the condition
     lower = [rig.key(t) for t in ("WIGLE", "SHOPPING", "PS5")]
     assert lower[0].rect.top == 249 and lower[-1].rect.bottom == 396
     assert "CLIMATE" not in [k.text for k in rig.sprites(LcarsKey)]    # THERMOSTAT is the controls
-    surface = rig.ui.screenSurface
-    block = [surface.get_at((x, y))[:3] for x in range(563, 742) for y in range(56, 97)]
-    black = sum(1 for c in block if c == (0, 0, 0))
-    assert 100 < black < 600 and block[0] == (255, 153, 0)              # the delta, small, black on orange
+    assert "NCC-1701-D" in [k.text for k in rig.sprites(LcarsKey)]     # the registry beside STATUS
     rig.shot("17-status-nav")
     rig.tap(thermostat)
     assert rig.screen == "thermostat"

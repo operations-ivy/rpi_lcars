@@ -1,25 +1,29 @@
 """The frame every panel screen shares: the LCARS background, a clock and the
-stardate under it in the top corner (both from its left), a title in the top bar, every
-STATUS on the top bar's first long block and Starfleet's delta on the second,
+stardate under it in the top corner (both from its left), the title at the top
+right with a running block of numbers before it, as LCARS screens have, every
+STATUS on the top bar's first long block and a registry on the second,
 the other screens down the sidebar, the Home Assistant link along the bottom."""
 from datetime import datetime
 
 from datasources.network import get_ip_addresses
 from ui import colours
 from ui.widgets.background import LcarsBackgroundImage
-from ui.widgets.panel_widgets import LcarsBlock, LcarsDelta, LcarsKey, LcarsLabel
+from ui.widgets.panel_widgets import LcarsBlock, LcarsCascade, LcarsKey, LcarsLabel
 from ui.widgets.screen import LcarsScreen
 
 # The frame's open area (x from 125 to 785, y from 100 to 440).
 LEFT, RIGHT, TOP, BOTTOM = 140, 775, 105, 435
 # The clock and the stardate's left edge, in the top left block.
 CORNER = 30
+# The top band, above the top bar: the title against its right edge, the
+# numbers from TITLE_LEFT up to TITLE_GAP short of the title.
+TITLE_RIGHT, TITLE_LEFT, TITLE_GAP, TITLE_SIZE = 783, 135, 24, 2
 
 # Blocks, (top, left) and size, matching lcars_screen_1.png. The top bar's two
-# long blocks (both of its rows) hold STATUS and the delta.
+# long blocks (both of its rows) hold STATUS and the registry.
 TOP_BAR = {
     "status": ((56, 412), (149, 41)),
-    "delta": ((56, 563), (179, 41)),
+    "registry": ((56, 563), (179, 41)),
 }
 SIDEBAR = {
     "upper": ((145, 16), (98, 62)),
@@ -29,6 +33,8 @@ SIDEBAR = {
 # The sidebar's blocks go to the screens in order; the lower block is cut into
 # as many as are left, with the background's 4 px black gap between.
 GAP = 4
+# The top bar's second block: a registry, like the ship on STATUS.
+REGISTRY = "NCC-1701-D"
 # STATUS on the top bar, larger than the sidebar's text.
 STATUS_SIZE = 1.6
 CONDITION = {"RED": ("RED ALERT", colours.RED), "YELLOW": ("YELLOW ALERT", colours.GOLD),
@@ -47,7 +53,9 @@ class PanelScreen(LcarsScreen):
         self.sprites = all_sprites
         all_sprites.add(LcarsBackgroundImage("assets/lcars_screen_1.png"), layer=0)
         self.clock = self.add(LcarsLabel(colours.BLACK, (13, CORNER), "", 1.5))
-        self.add(LcarsLabel(colours.ORANGE, (0, 135), self.title, 2))
+        title = self.add(LcarsLabel(colours.ORANGE, (0, TITLE_RIGHT), self.title, TITLE_SIZE, "right"))
+        width = title.rect.left - TITLE_GAP - TITLE_LEFT
+        self.cascade = self.add(LcarsCascade((4, TITLE_LEFT), (width, 40))) if width > 60 else None
         # The first address only: the bar fits one.
         self.add(LcarsLabel(colours.BLACK, (444, 470), next(iter(get_ip_addresses()), "")))
         self.stardate = self.add(LcarsLabel(colours.BLACK, (46, CORNER), "", 0.7))
@@ -84,7 +92,7 @@ class PanelScreen(LcarsScreen):
         return out
 
     def nav(self, action=None):
-        """STATUS and the delta on the top bar, the other screens down the
+        """STATUS and the registry on the top bar, the other screens down the
         sidebar (screens()). The current screen's block does nothing. The
         ALERTS block names the alert condition in its colour."""
         here = self.name
@@ -92,11 +100,11 @@ class PanelScreen(LcarsScreen):
         self.nav_keys = {"status": self.add(LcarsKey(colours.BEIGE, pos, size, "STATUS",
                                                      None if here == "status" else self.go_status,
                                                      text_size=STATUS_SIZE, align="corner"), layer=2)}
-        self.add(LcarsDelta(colours.ORANGE, *TOP_BAR["delta"]), layer=2)
+        self.add(LcarsKey(colours.ORANGE, *TOP_BAR["registry"], REGISTRY, align="corner"), layer=2)
         # The background splits only the bar's upper row there: black the
         # whole gap between the two.
         (top, left), (width, height) = TOP_BAR["status"]
-        gap = TOP_BAR["delta"][0][1] - (left + width)
+        gap = TOP_BAR["registry"][0][1] - (left + width)
         self.add(LcarsBlock(colours.BLACK, (top, left + width), (gap, height)), layer=2)
         blocks = self.screens(action)
         slots = [SIDEBAR["upper"], SIDEBAR["middle"]][:len(blocks)]
@@ -139,6 +147,8 @@ class PanelScreen(LcarsScreen):
         ok, text = self.link_text()
         self.link.set(text, colours.BLUE if ok else colours.RED)
         self.show_condition()
+        if self.cascade is not None:
+            self.cascade.tick(self.panel.clock())
         if self.panel.night.dark and self.name != "status":
             self.go_status()
         else:
