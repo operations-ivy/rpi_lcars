@@ -646,6 +646,36 @@ def test_status_says_when_the_news_is_offline():
     assert "HEADLINES OFFLINE" in rig.texts()
 
 
+def test_status_cycles_the_forecast_without_a_news_feed():
+    clock = {"t": NOW}
+    rig = Rig(web=quiet_web(), now=lambda: clock["t"])
+    rig.panel.cfg.NEWS_CYCLE_SECONDS = 15
+    start = int(NOW // 15) * 15
+    clock["t"] = start
+    rig.tick()
+    texts = rig.texts()
+    assert "FORECAST 1/2" in texts and "TODAY: CHANCE RAIN SHOWERS, HIGH 72°F, PRECIP 27%" in texts
+    line = [l for l in rig.sprites(LcarsLabel) if l.text.startswith("TODAY:")][0]
+    assert line.rect.left == 140 and line.rect.top == 410               # along the bottom
+    rig.shot("24-status-forecast")
+    clock["t"] = start + 15
+    rig.tick()
+    assert "FORECAST 2/2" in rig.texts() and "TONIGHT: CLOUDY, LOW 62°F" in rig.texts()
+
+
+def test_forecast_periods_zero_turns_the_strip_off(monkeypatch):
+    monkeypatch.setattr(config, "FORECAST_PERIODS", 0)
+    rig = Rig(web=quiet_web(), now=lambda: NOW)
+    assert not any(t.startswith("FORECAST") for t in rig.texts())
+
+
+def test_forecast_with_all_weather_down_says_offline():
+    web = quiet_web()
+    web.down |= {"api.weather.gov", "api.open-meteo.com", "api.met.no"}
+    rig = Rig(web=web, now=lambda: NOW)
+    assert "FORECAST OFFLINE" in rig.texts()
+
+
 def test_alerts_screen():
     rig = Rig(web=quiet_web(), feeds=feeds(), now=lambda: NOW)
     rig.tap(rig.key("RED ALERT"))
