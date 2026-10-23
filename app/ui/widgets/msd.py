@@ -1,7 +1,7 @@
 """A master systems display: the Enterprise-D from above, drawn as LCARS
-line art (gold outline, deck rings, coloured sections, the warp core), and
-callout lines from labels to named parts of it. Drawn once, in code (no
-image), at three times the size and scaled down for smooth edges."""
+line art (gold outline, deck rings, coloured sections, the warp core).
+Drawn once, in code (no image), at three times the size and scaled down for
+smooth edges."""
 import random
 
 import pygame
@@ -12,15 +12,6 @@ from ui.widgets.sprite import LcarsWidget
 # The ship in metres, x across from the centre line, y aft from the bow:
 # its beam and length.
 BEAM, LENGTH = 468, 662
-# Named parts callouts can point at (metres).
-PARTS = {
-    "bridge": (0, 150),
-    "saucer": (-185, 215),
-    "lounge": (-70, 305),
-    "deflector": (0, 392),
-    "core": (0, 520),
-    "nacelle": (-112, 600),
-}
 SCALE = 3  # drawn this many times larger, then smoothed down
 DIM_GOLD = (128, 102, 51)
 
@@ -39,11 +30,6 @@ class LcarsShip(LcarsWidget):
     def at(self, x, y, scale=1):
         """Metres -> pixels on the widget (times scale)."""
         return ((self.offset[0] + (x + BEAM / 2) * self.k) * scale, (self.offset[1] + y * self.k) * scale)
-
-    def part(self, name):
-        """A named part's position on the screen."""
-        x, y = self.at(*PARTS[name])
-        return round(self.rect.left + x), round(self.rect.top + y)
 
     def draw(self, s):
         at = lambda x, y: self.at(x, y, SCALE)  # noqa: E731
@@ -95,21 +81,3 @@ class LcarsShip(LcarsWidget):
         poly([(-44, 300), (44, 300), (36, 360), (-36, 360)], colours.GOLD, line)
         pygame.draw.line(s, colours.BLACK, at(-40, 330), at(40, 330), line)  # the neck over the hull's top
 
-
-class LcarsCallouts(LcarsWidget):
-    """Thin lines from points (a label's end) to points (a ship's parts):
-    level from the start to bend_x, then straight to the end, with a dot."""
-
-    def __init__(self, rect, lines, colour=colours.GREY_BLUE):
-        x0, y0, w, h = rect
-        self.image = pygame.Surface((w, h)).convert()
-        self.image.fill(colours.BLACK)
-        self.image.set_colorkey(colours.BLACK)
-        for (sx, sy), bend_x, (ex, ey) in lines:
-            points = [(sx - x0, sy - y0), (bend_x - x0, sy - y0), (ex - x0, ey - y0)]
-            pygame.draw.lines(self.image, colour, False, points, 1)
-            pygame.draw.circle(self.image, colour, points[-1], 3)
-        LcarsWidget.__init__(self, colour, (y0, x0), None)
-
-    def handleEvent(self, event, clock):
-        return False

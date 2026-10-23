@@ -154,15 +154,16 @@ def test_title_top_right_with_running_numbers(rig):
     assert cascade.lines[:2] == before[1:]                              # a row on
 
 
-def test_status_ship_and_its_callouts(rig):
-    from ui.widgets.msd import LcarsCallouts, LcarsShip
+def test_status_ship_fills_the_right(rig):
+    from ui.widgets.msd import LcarsShip
     ship = [s for s in rig.ui.all_sprites.sprites() if isinstance(s, LcarsShip)][0]
-    assert ship.rect.left == 652 and ship.rect.right <= 775            # inside the frame
-    lines = [s for s in rig.ui.all_sprites.sprites() if isinstance(s, LcarsCallouts)]
-    assert len(lines) == 1
-    x, y = ship.part("bridge")
-    assert rig.ui.screenSurface.get_at((x, y))[:3] != (0, 0, 0)         # the bridge is drawn there
-    assert "HOUSE AVERAGE" in rig.texts()
+    assert ship.rect.left == 600 and ship.rect.right <= 775 and ship.rect.height >= 240
+    labels = [l for l in rig.sprites(LcarsLabel) if l.rect.left == 470]
+    assert labels and all(l.rect.right < ship.rect.left for l in labels)  # the readouts clear of it
+    texts = rig.texts()
+    assert "73.4°F" in texts and "CLOUDY" in texts                      # outside: temperature, then condition
+    assert "HOUSE AVERAGE" in texts
+    rig.shot("25-status-ship")
 
 
 def test_thermostat_scale(rig):
@@ -178,7 +179,7 @@ def test_status_is_an_overview(alert_rig):
     rig = alert_rig
     assert rig.screen == "status"
     texts = rig.texts()
-    for expected in ("HOUSE AVERAGE", "NO UPSTAIRS SENSOR", "73.4°F CLOUDY",
+    for expected in ("HOUSE AVERAGE", "NO UPSTAIRS SENSOR", "73.4°F", "CLOUDY",
                      "ONLINE", "SETS 18:24", "--",
                      "WEATHER ALERTS", "FLOOD WATCH", "HOME ASSISTANT", "NOMINAL"):
         assert expected in texts, expected
