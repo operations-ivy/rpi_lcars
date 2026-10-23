@@ -277,6 +277,39 @@ class LcarsArrow(_Pressable):
         pygame.draw.polygon(surface, colours.BLACK, [(cx, tip), (cx - half, base), (cx + half, base)])
 
 
+class LcarsDelta(LcarsWidget):
+    """A block with Starfleet's delta in black in its middle, a star cut into
+    it and a ring around it; drawn at four times the size and scaled down,
+    for smooth edges."""
+
+    # The delta in a unit box (x, y): the tip, a leg, the notch, the other leg.
+    DELTA = [(0.5, 0), (1, 1), (0.5, 0.74), (0, 1)]
+    WIDTH, HEIGHT = 0.62, 0.58  # the delta's width over its height, its height over the block's
+    RING, RING_WIDTH = 0.45, 0.06  # the ring's radius and line, over the block's height
+
+    def __init__(self, colour, pos, size):
+        w, h = size
+        big = pygame.Surface((w * 4, h * 4))
+        big.fill(colour)
+        dh = h * 4 * self.HEIGHT
+        dw = dh * self.WIDTH
+        x0, y0 = (w * 4 - dw) / 2, (h * 4 - dh) / 2
+        pygame.draw.polygon(big, colours.BLACK, [(x0 + x * dw, y0 + y * dh) for x, y in self.DELTA])
+        # A four-pointed star, its points long and its waist narrow.
+        cx, cy, r = x0 + dw / 2, y0 + dh * 0.56, dh * 0.13
+        star = []
+        for i in range(8):
+            v = pygame.math.Vector2(0, -(r if i % 2 == 0 else r * 0.3)).rotate(45 * i)
+            star.append((cx + v.x, cy + v.y))
+        pygame.draw.polygon(big, colour, star)
+        pygame.draw.circle(big, colours.BLACK, (w * 2, h * 2), h * 4 * self.RING, max(1, round(h * 4 * self.RING_WIDTH)))
+        self.image = pygame.transform.smoothscale(big, size).convert()
+        LcarsWidget.__init__(self, colour, pos, size)
+
+    def handleEvent(self, event, clock):
+        return False
+
+
 class LcarsDots(LcarsWidget):
     """How many digits are in: a row of drawn dots, one hollow slot per
     digit still allowed."""

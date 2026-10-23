@@ -463,13 +463,17 @@ def test_sidebar_has_shopping_and_ps5_only_when_configured(monkeypatch):
     rig = Rig(web=quiet_web())
     assert rig.key("SHOPPING") and rig.key("PS5")
     assert rig.key("PS5").rect.bottom == 396          # the last block still ends where the frame's does
+    monkeypatch.setattr(config, "MEDIA_BUTTON", False)
+    rig = Rig(web=quiet_web())
+    assert "PS5" not in [k.text for k in rig.sprites(LcarsKey)]   # switched off, still configured
+    monkeypatch.setattr(config, "MEDIA_BUTTON", True)
     monkeypatch.setattr(config, "SHOPPING_LIST", "")
     monkeypatch.setattr(config, "MEDIA_PLAYER", "")
     rig = Rig(web=quiet_web())
     texts = [k.text for k in rig.sprites(LcarsKey)]
     assert "SHOPPING" not in texts and "PS5" not in texts
     rig.tap(rig.key("THERMOSTAT"))
-    assert rig.key("UNLOCK").rect.height == 147       # alone in the lower block
+    assert rig.key("UNLOCK").rect.bottom == 396       # last in the lower block
 
 
 def test_shopping_list_ticks_off_even_when_read_only(monkeypatch):
@@ -581,16 +585,21 @@ def feeds(**ages):
 def test_navigation_top_bar_and_sidebar():
     rig = Rig(web=quiet_web(), feeds=feeds(), now=lambda: NOW)
     status, thermostat = rig.key("STATUS"), rig.key("THERMOSTAT")
-    assert status.rect.top == 56 and thermostat.rect.top == 56          # on the top bar
-    assert rig.key("RED ALERT").rect.top == 145                         # the big sidebar block, named for the condition
-    assert rig.key("WIGLE").rect.top == 211
-    lower = [rig.key(t) for t in ("SHOPPING", "PS5")]
+    assert status.rect.top == 56                                        # on the top bar
+    assert thermostat.rect.top == 145                                   # the big sidebar block
+    assert all(k.rect.left == 16 for k in rig.sprites(LcarsKey) if k is not status)   # the rest on the left
+    assert rig.key("RED ALERT").rect.top == 211                         # named for the condition
+    lower = [rig.key(t) for t in ("WIGLE", "SHOPPING", "PS5")]
     assert lower[0].rect.top == 249 and lower[-1].rect.bottom == 396
     assert "CLIMATE" not in [k.text for k in rig.sprites(LcarsKey)]    # THERMOSTAT is the controls
+    surface = rig.ui.screenSurface
+    block = [surface.get_at((x, y))[:3] for x in range(563, 742) for y in range(56, 97)]
+    black = sum(1 for c in block if c == (0, 0, 0))
+    assert 100 < black < 600 and block[0] == (255, 153, 0)              # the delta, small, black on orange
     rig.shot("17-status-nav")
     rig.tap(thermostat)
     assert rig.screen == "thermostat"
-    lower = [rig.key(t) for t in ("SHOPPING", "PS5", "UNLOCK")]
+    lower = [rig.key(t) for t in ("WIGLE", "SHOPPING", "PS5", "UNLOCK")]
     assert lower[-1].rect.bottom == 396
     rig.shot("18-thermostat-locked")
     rig.tap(rig.key("STATUS"))
@@ -611,21 +620,21 @@ def test_status_cycles_the_headlines():
     clock["t"] = start
     rig.tick()
     texts = rig.texts()
-    assert "GUARDIAN HEADLINES 1/3" in texts
+    assert "HEADLINES 1/3" in texts
     assert any(t.startswith("First headline") for t in texts) and any(t.endswith("…") for t in texts)
     first = [l for l in rig.sprites(LcarsLabel) if l.text.startswith("First headline")][0]
     assert first.rect.left == 140 and first.rect.top >= 380             # along the bottom, full width
     rig.shot("19-status-news")
     clock["t"] = start + 15
     rig.tick()
-    assert "GUARDIAN HEADLINES 2/3" in rig.texts() and "Second headline" in rig.texts()
+    assert "HEADLINES 2/3" in rig.texts() and "Second headline" in rig.texts()
     labels = {l.text: l for l in rig.sprites(LcarsLabel)}
     assert labels["Second headline"].rect.top == 410                     # one line: on the bottom line
-    assert labels["GUARDIAN HEADLINES 2/3"].rect.top == 386                    # just above it
+    assert labels["HEADLINES 2/3"].rect.top == 386                    # just above it
     assert not any(t.startswith("First headline") for t in rig.texts())
     clock["t"] = start + 45                                            # round again
     rig.tick()
-    assert "GUARDIAN HEADLINES 1/3" in rig.texts()
+    assert "HEADLINES 1/3" in rig.texts()
     news = [s for s in rig.sprites(LcarsLabel) if s.text.startswith("First")]
     pos = news[0].rect.center
     rig.tap(pos)                                                       # not a link
@@ -634,7 +643,7 @@ def test_status_cycles_the_headlines():
 
 def test_status_says_when_the_news_is_offline():
     rig = Rig(web=quiet_web(), feeds={"news": FakeFeed(None)}, now=lambda: NOW)
-    assert "GUARDIAN HEADLINES OFFLINE" in rig.texts()
+    assert "HEADLINES OFFLINE" in rig.texts()
 
 
 def test_alerts_screen():
