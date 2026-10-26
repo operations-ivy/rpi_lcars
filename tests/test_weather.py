@@ -194,3 +194,77 @@ def test_compass_and_parse():
     assert W.compass(0) == "N" and W.compass(359) == "N" and W.compass(60) == "ENE"
     assert W.parse_point(" 39.74561, -97.08923 ") == (39.7456, -97.0892)
     assert W.parse_point("") is None
+
+
+def no_latest_temperature(web):
+    """As on 2026-10-26: the latest observation came without its
+    temperature (not yet quality-controlled), "Clear" and all."""
+    latest = web.bodies["https://api.weather.gov/stations/KXYZ/observations/latest"]["properties"]
+    latest["temperature"] = {"value": None, "qualityControl": "Z"}
+    latest["textDescription"] = "Clear"
+
+
+def observations(*temps):
+    """The station's recent observations, newest first, ten minutes apart from NOW."""
+    return {"features": [{"properties": {
+        "temperature": {"value": t},
+        "timestamp": (NOW - timedelta(minutes=10 * i)).astimezone(timezone.utc).isoformat()}}
+        for i, t in enumerate(temps)]}
+
+
+RECENT = "https://api.weather.gov/stations/KXYZ/observations?limit=12"
+
+
+def test_nws_missing_temperature_takes_the_newest_recent_one():
+    web, m = FakeWeb(), Metrics()
+    no_latest_temperature(web)
+    web.bodies[RECENT] = observations(None, 13.9, 12)
+    w = make(web, m)
+    assert w.poll() and w.source == "nws"
+    c = w.current()
+    assert round(c["temperature"]) == 57 and c["condition"] == "CLEAR"
+    assert w.alerts()[0]["event"] == "FLOOD WATCH"
+    assert m.get("lcars_weather_temperature_fahrenheit") == 57.0
+    assert not any("open-meteo" in u for u in web.urls)
+
+
+def test_nws_missing_temperature_ignores_old_observations():
+    web = FakeWeb()
+    no_latest_temperature(web)
+    web.bodies[RECENT] = {"features": [{"properties": {
+        "temperature": {"value": 13.9}, "timestamp": (NOW - timedelta(hours=3)).isoformat()}}]}
+    w = make(web)
+    assert w.poll() and w.source == "nws"
+    assert w.current()["temperature"] == 70.5  # Open-Meteo's, not three hours old
+
+
+def test_nws_missing_temperature_takes_a_backups():
+    web = FakeWeb()
+    no_latest_temperature(web)
+    web.bodies[RECENT] = observations(None, None)
+    w = make(web)
+    assert w.poll() and w.source == "nws"
+    c = w.current()
+    assert c["temperature"] == 70.5 and c["condition"] == "CLEAR"
+    assert [p["name"] for p in w.periods()] == ["TODAY", "TONIGHT"]  # still the NWS's
+    assert w.alerts()[0]["event"] == "FLOOD WATCH"
+
+
+def test_nws_missing_temperature_with_the_list_down_takes_a_backups():
+    web = FakeWeb()
+    no_latest_temperature(web)  # and no RECENT body: that request fails
+    web.down.add("api.open-meteo.com")
+    w = make(web)
+    assert w.poll() and w.source == "nws"
+    assert round(w.current()["temperature"]) == 68  # MET Norway's 20 °C
+    assert w.alerts()[0]["event"] == "FLOOD WATCH"
+
+
+def test_no_temperature_anywhere_shows_none():
+    web = FakeWeb()
+    no_latest_temperature(web)
+    web.bodies[RECENT] = observations(None)
+    web.down |= {"api.open-meteo.com", "api.met.no"}
+    w = make(web)
+    assert w.poll() and w.source == "nws"
+    assert w.current()["temperature"] is None and w.current()["condition"] == "CLEAR"

@@ -11,9 +11,11 @@ Three sources, tried in order until one answers:
 
 All free, no keys. The backups' hours are folded into the NWS's 12-hour
 periods (TODAY / TONIGHT / FRIDAY / FRIDAY NIGHT), so the screens don't care
-which source answered. If none answers, the last good data stays, with its
-source and age for the screens to show, and the next try comes sooner (one
-minute, doubling up to the normal interval)."""
+which source answered. An NWS observation without a temperature takes the
+station's newest recent one, else a backup's (the rest stays the NWS's). If
+none answers, the last good data stays, with its source and age for the
+screens to show, and the next try comes sooner (one minute, doubling up to
+the normal interval)."""
 import json
 import logging
 import threading
@@ -30,6 +32,8 @@ USER_AGENT = "rpi_lcars (github.com/operations-ivy/rpi_lcars)"
 COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
            "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
 RETRY_SECONDS = 60
+# How old an NWS observation's temperature may be to stand in for a missing one.
+RECENT_SECONDS = 2 * 3600
 
 # WMO weather interpretation codes (Open-Meteo).
 WMO = {0: "CLEAR", 1: "MOSTLY CLEAR", 2: "PARTLY CLOUDY", 3: "CLOUDY", 45: "FOG", 48: "FREEZING FOG",
@@ -140,6 +144,11 @@ class NWS(Source):
             current = current_dict(c_to_f(value("temperature")), (p.get("textDescription") or "").upper() or None,
                                    value("relativeHumidity"), None if wind is None else wind / 1.609344,
                                    value("windDirection"), p.get("timestamp"))
+            if current["temperature"] is None:
+                try:
+                    current["temperature"] = self.recent_temperature(now)
+                except Exception as e:  # noqa: BLE001 - the backups' temperature
+                    log.warning("recent observations from nws: %s", e)
         periods = []
         for x in self.get(self.name, "forecast", self.forecast_url)["properties"]["periods"]:
             temp = x.get("temperature")
@@ -156,6 +165,20 @@ class NWS(Source):
             alerts.append({"event": (a.get("event") or "ALERT").upper(), "severity": a.get("severity") or "Unknown",
                            "ends": datetime.fromisoformat(ends) if ends else None})
         return current, periods, alerts
+
+    def recent_temperature(self, now):
+        """°F from the station's newest observation within RECENT_SECONDS that
+        has one, or None. The latest observation sometimes comes without its
+        temperature (not yet quality-controlled) while the list already has it."""
+        features = self.get(self.name, "observations",
+                            f"{self.API}/stations/{self.station}/observations?limit=12")["features"]
+        for f in features:
+            p = f["properties"]
+            temp = (p.get("temperature") or {}).get("value")
+            when = p.get("timestamp")
+            if temp is not None and when and (now - datetime.fromisoformat(when)).total_seconds() <= RECENT_SECONDS:
+                return c_to_f(temp)
+        return None
 
 
 class OpenMeteo(Source):
@@ -287,6 +310,8 @@ class Weather(threading.Thread):
             except Exception as e:  # noqa: BLE001 - next source
                 log.warning("weather from %s: %s", source.name, e)
                 continue
+            if current.get("temperature") is None:
+                current = self._fill_temperature(current, source, now)
             with self._lock:
                 self._current, self._periods, self._alerts = current, periods, alerts
             self.source, self.updated, self.connected, self.error = source.name, time.time(), True, ""
@@ -295,6 +320,20 @@ class Weather(threading.Thread):
         self.connected, self.error = False, "ALL SOURCES OFFLINE"
         self._publish()
         return False
+
+    def _fill_temperature(self, current, answered, now):
+        """A source answered without a current temperature: take just the
+        temperature from the next source that has one, keeping the rest."""
+        for source in self.sources[self.sources.index(answered) + 1:]:
+            try:
+                temp = source.fetch(now)[0].get("temperature")
+            except Exception as e:  # noqa: BLE001 - next source
+                log.warning("temperature from %s: %s", source.name, e)
+                continue
+            if temp is not None:
+                log.info("no temperature from %s; using %s's", answered.name, source.name)
+                return {**current, "temperature": temp}
+        return current
 
     def _publish(self):
         if not self.metrics:
