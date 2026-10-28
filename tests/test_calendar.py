@@ -301,6 +301,18 @@ def test_fit_keeps_room_for_tomorrow():
     assert fit([], 4) == []
 
 
+def test_fit_counts_two_line_events():
+    from screens.status import fit
+    cost = lambda e: 2 if e in ("a", "d") else 1   # "a"/"d" wrap to two lines  # noqa: E731
+    # The day's name + a (two lines) + b (one) fill four lines; c doesn't fit.
+    assert fit([("TODAY", ["a", "b", "c"])], 4, cost) == [
+        ("day", ("TODAY", 1)), ("event", "a"), ("event", "b")]
+    # With only three lines, a's two lines leave no room for b.
+    assert fit([("TODAY", ["a", "b"])], 3, cost) == [("day", ("TODAY", 1)), ("event", "a")]
+    # The first event always shows, clipped to one line when that's all there is.
+    assert fit([("TODAY", ["a"])], 2, cost) == [("day", ("TODAY", 0)), ("event", "a")]
+
+
 def test_status_shows_today_and_tomorrow(monkeypatch):
     r = rig(monkeypatch, read_only=True)
     texts = r.texts()
@@ -308,6 +320,22 @@ def test_status_shows_today_and_tomorrow(monkeypatch):
         assert expected in texts, expected
     assert "BREAKFAST" not in texts                                   # over
     r.shot("23-status-calendar")
+
+
+def test_status_wraps_a_long_event_title(monkeypatch):
+    from screens import status
+    from ui.widgets.panel_widgets import drawable, wrap
+    summary = "Quarterly Budget Review With The Finance Committee"
+    long = {"calendar.family": [timed(summary, "2026-10-22T15:30:00-04:00", "2026-10-22T16:00:00-04:00")]}
+    r = rig(monkeypatch, raw=long, read_only=True)
+    width = status.LEFT_WIDTH - status.AGENDA_TIME
+    expected = wrap(drawable(summary, status.AGENDA_SIZE).upper(), status.AGENDA_SIZE, width, 2)
+    texts = r.texts()
+    assert len(expected) == 2                         # the title spills onto a second line
+    assert not expected[-1].endswith("…")             # and fits in two without being cut
+    for line in expected:
+        assert line in texts, line                    # both lines are drawn (old code dropped the tail)
+    assert "TOMORROW" in texts
 
 
 def test_status_names_only_days_with_events(monkeypatch):

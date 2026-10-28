@@ -38,23 +38,34 @@ AGENDA_TOP, AGENDA_STEP, AGENDA_SIZE, AGENDA_LINES, AGENDA_TIME = TOP + 165, 21,
 LOCK_TOP = AGENDA_TOP + 2 * AGENDA_STEP + 4
 
 
-def fit(days, lines):
-    """[(kind, value)] in at most lines lines: ("day", (name, more)) then
+def fit(days, lines, cost=lambda e: 1):
+    """[(kind, value)] in at most `lines` lines: ("day", (name, more)) then
     ("event", entry) for each day in turn, more being how many of its events
-    didn't fit. Each later day keeps room for its name and one event when
-    there's room for it at all."""
+    didn't fit. cost(entry) is the lines an event's title takes (1 or 2); a
+    day always shows its first event, clipped to fit. Each later day keeps
+    room for its name and one event when there's room for it at all."""
     out = []
+    used = 0
     for i, (name, entries) in enumerate(days):
         later = 2 * (len(days) - i - 1)
-        room = lines - len(out)
+        room = lines - used
         if room - later >= 2:
             room -= later
         if room < 2:
             break
-        shown = entries[:room - 1]
-        more = len(entries) - len(shown)
-        out.append(("day", (name, more)))
-        out += [("event", e) for e in shown]
+        budget = room - 1               # the day's name takes one line
+        shown, spent = 0, 0
+        for e in entries:
+            c = cost(e)
+            if shown == 0:
+                c = min(c, budget)      # the first event always shows, clipped
+            elif spent + c > budget:
+                break
+            shown += 1
+            spent += c
+        out.append(("day", (name, len(entries) - shown)))
+        out += [("event", e) for e in entries[:shown]]
+        used += 1 + spent
     return out
 
 
@@ -119,26 +130,41 @@ class ScreenStatus(PanelScreen):
         for i, label in enumerate(self.sources):
             label.set(source if i == at else "")
 
+    def title_text(self, e):
+        title = drawable(e["summary"], AGENDA_SIZE).upper() or "EVENT"
+        return f"{title} - IN {e['soon']} MIN" if e["soon"] else title
+
     def show_agenda(self):
         p = self.panel
         today = p.ha.now().date()
         days = [(day_name(day, today), entries) for day, entries in p.upcoming()]
-        rows = fit(days, AGENDA_LINES if p.read_only else AGENDA_LINES - 2)
-        for (left, right), row in zip(self.agenda, rows + [None] * AGENDA_LINES):
-            if row is None:
-                left.set("")
-                right.set("")
-            elif row[0] == "day":
+        width = LEFT_WIDTH - AGENDA_TIME
+        lines = AGENDA_LINES if p.read_only else AGENDA_LINES - 2
+        # An event's title wraps to a second line when it won't fit on one, so
+        # it costs fit() one line or two; its time sits on the first line only.
+        rows = fit(days, lines, lambda e: len(wrap(self.title_text(e), AGENDA_SIZE, width, 2)))
+        slot = 0
+        for row in rows:
+            if slot >= AGENDA_LINES:
+                break
+            if row[0] == "day":
+                left, right = self.agenda[slot]
                 name, more = row[1]
                 left.set(name, colours.ORANGE)
                 right.set(f"+{more} MORE" if more else "", colours.GREY_BLUE)
+                slot += 1
             else:
                 e = row[1]
                 gold = e["now"] or e["soon"]
-                left.set("NOW" if e["now"] else e["when"], colours.GOLD if gold else colours.BEIGE)
-                title = drawable(e["summary"], AGENDA_SIZE).upper() or "EVENT"
-                right.set(f"{title} - IN {e['soon']} MIN" if e["soon"] else title,
-                          colours.GOLD if gold else colours.BLUE)
+                when = "NOW" if e["now"] else e["when"]
+                for n, line in enumerate(wrap(self.title_text(e), AGENDA_SIZE, width, min(2, AGENDA_LINES - slot))):
+                    left, right = self.agenda[slot]
+                    left.set(when if n == 0 else "", colours.GOLD if gold else colours.BEIGE)
+                    right.set(line, colours.GOLD if gold else colours.BLUE)
+                    slot += 1
+        for left, right in self.agenda[slot:]:
+            left.set("")
+            right.set("")
 
     def refresh(self):
         p = self.panel
