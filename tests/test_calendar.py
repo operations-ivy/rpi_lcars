@@ -289,36 +289,49 @@ def test_titles_the_font_cant_draw():
 
 # STATUS: today's and tomorrow's events under the average.
 
-def test_fit_keeps_room_for_tomorrow():
-    from screens.status import fit
-    today, tomorrow = ("TODAY", ["a", "b", "c"]), ("TOMORROW", ["d", "e"])
-    assert fit([today, tomorrow], 4) == [("day", ("TODAY", 2)), ("event", "a"),
-                                         ("day", ("TOMORROW", 1)), ("event", "d")]
-    assert fit([today, tomorrow], 6) == [("day", ("TODAY", 0)), ("event", "a"), ("event", "b"), ("event", "c"),
-                                         ("day", ("TOMORROW", 1)), ("event", "d")]
-    assert fit([today, tomorrow], 2) == [("day", ("TODAY", 2)), ("event", "a")]
-    assert fit([tomorrow], 4) == [("day", ("TOMORROW", 0)), ("event", "d"), ("event", "e")]
-    assert fit([], 4) == []
+def test_paginate_splits_and_relabels_days():
+    from screens.status import paginate
+    one = lambda e: 1  # noqa: E731
+    pages = paginate([("TODAY", ["a", "b", "c"]), ("TOMORROW", ["d", "e"])], 4, one)
+    assert pages == [[("day", "TODAY"), ("event", "a"), ("event", "b"), ("event", "c")],
+                     [("day", "TOMORROW"), ("event", "d"), ("event", "e")]]
+    # A day that carries over is re-labelled at the top of the next page.
+    assert paginate([("TODAY", ["a", "b", "c", "d"])], 3, one) == [
+        [("day", "TODAY"), ("event", "a"), ("event", "b")],
+        [("day", "TODAY"), ("event", "c"), ("event", "d")]]
+    assert paginate([], 4, one) == []
 
 
-def test_fit_counts_two_line_events():
-    from screens.status import fit
-    cost = lambda e: 2 if e in ("a", "d") else 1   # "a"/"d" wrap to two lines  # noqa: E731
-    # The day's name + a (two lines) + b (one) fill four lines; c doesn't fit.
-    assert fit([("TODAY", ["a", "b", "c"])], 4, cost) == [
-        ("day", ("TODAY", 1)), ("event", "a"), ("event", "b")]
-    # With only three lines, a's two lines leave no room for b.
-    assert fit([("TODAY", ["a", "b"])], 3, cost) == [("day", ("TODAY", 1)), ("event", "a")]
-    # The first event always shows, clipped to one line when that's all there is.
-    assert fit([("TODAY", ["a"])], 2, cost) == [("day", ("TODAY", 0)), ("event", "a")]
+def test_paginate_two_line_events_and_clip():
+    from screens.status import paginate
+    cost = lambda e: 2 if e == "a" else 1  # noqa: E731  # "a" wraps to two lines
+    # day + a (two lines) fills a three-line page; b starts the next, re-labelled.
+    assert paginate([("TODAY", ["a", "b"])], 3, cost) == [
+        [("day", "TODAY"), ("event", "a")], [("day", "TODAY"), ("event", "b")]]
+    # A two-line event is clipped to one rather than dropped on a two-line page.
+    assert paginate([("TODAY", ["a"])], 2, cost) == [[("day", "TODAY"), ("event", "a")]]
 
 
-def test_status_shows_today_and_tomorrow(monkeypatch):
+def at_page(r, i):
+    """Render agenda page i (the cycle is driven by the panel's seconds clock)."""
+    r.panel.now = lambda: i * config.NEWS_CYCLE_SECONDS
+    r.tick()
+    return r.texts()
+
+
+def test_status_cycles_through_a_busy_agenda(monkeypatch):
+    # Four rows hold today's three events (page 1); tomorrow's two are page 2.
     r = rig(monkeypatch, read_only=True)
-    texts = r.texts()
-    for expected in ("TODAY", "+2 MORE", "ALL DAY", "BIN DAY", "TOMORROW", "+1 MORE", "TRIP"):
-        assert expected in texts, expected
-    assert "BREAKFAST" not in texts                                   # over
+    p0 = at_page(r, 0)
+    assert "TODAY" in p0 and "1/2" in p0                              # labelled, and clearly a cycle
+    for e in ("BIN DAY", "STANDUP", "DENTIST"):
+        assert any(e in t for t in p0), e
+    assert "TOMORROW" not in p0 and not any("BREAKFAST" in t for t in p0)   # Breakfast is over
+    p1 = at_page(r, 1)
+    assert "TOMORROW" in p1 and "2/2" in p1 and "TODAY" not in p1
+    for e in ("TRIP", "LATE SHIFT"):
+        assert any(e in t for t in p1), e
+    assert not any("MORE" in t for t in p0 + p1)                      # nothing truncated away now
     r.shot("23-status-calendar")
 
 
@@ -346,8 +359,14 @@ def test_status_names_only_days_with_events(monkeypatch):
     assert "TODAY" not in r.texts() and "TOMORROW" not in r.texts()
 
 
-def test_status_with_the_lock_keeps_two_lines(monkeypatch):
+def test_status_with_the_lock_cycles_in_two_rows(monkeypatch):
+    # Not read-only: the lock takes the last two rows, leaving two for one
+    # day's name and one event a page - so the five events cycle one at a time.
     r = rig(monkeypatch)
-    texts = r.texts()
-    assert "TODAY" in texts and "+2 MORE" in texts and "BIN DAY" in texts and "TOMORROW" not in texts
-    assert "CONTROLS SECURED" in texts
+    p0 = at_page(r, 0)
+    assert "TODAY" in p0 and any("BIN DAY" in t for t in p0) and "1/5" in p0
+    assert "TOMORROW" not in p0 and "CONTROLS SECURED" in p0
+    seen = []
+    for i in range(5):
+        seen += at_page(r, i)
+    assert "TOMORROW" in seen and any("TRIP" in t for t in seen) and any("LATE SHIFT" in t for t in seen)

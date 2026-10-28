@@ -31,42 +31,46 @@ VALUE_WIDTH = BEND_X - COL_LABEL - 4
 # this screen). As wide as the events above it.
 NEWS_LINES, NEWS_SIZE, NEWS_HEIGHT = 2, 1.1, 24
 NEWS_TOP = BOTTOM - 25 - (NEWS_LINES - 1) * NEWS_HEIGHT
-# Under the average: the events, a line each under its day's name, then the
-# lock and its hint (not read-only: it takes the last two lines' room).
+# Under the average: today's and tomorrow's events under their day's name,
+# cycled a page at a time when they don't all fit; then the lock and its hint
+# (not read-only: it takes the last two lines' room).
 LEFT_WIDTH = NEWS_WIDTH = COL_LABEL - LEFT - 20
 AGENDA_TOP, AGENDA_STEP, AGENDA_SIZE, AGENDA_LINES, AGENDA_TIME = TOP + 165, 21, 1.0, 4, 90
 LOCK_TOP = AGENDA_TOP + 2 * AGENDA_STEP + 4
 
 
-def fit(days, lines, cost=lambda e: 1):
-    """[(kind, value)] in at most `lines` lines: ("day", (name, more)) then
-    ("event", entry) for each day in turn, more being how many of its events
-    didn't fit. cost(entry) is the lines an event's title takes (1 or 2); a
-    day always shows its first event, clipped to fit. Each later day keeps
-    room for its name and one event when there's room for it at all."""
-    out = []
-    used = 0
-    for i, (name, entries) in enumerate(days):
-        later = 2 * (len(days) - i - 1)
-        room = lines - used
-        if room - later >= 2:
-            room -= later
-        if room < 2:
-            break
-        budget = room - 1               # the day's name takes one line
-        shown, spent = 0, 0
+def paginate(days, lines, cost):
+    """The whole agenda split into pages of at most `lines` lines: today's
+    events then tomorrow's, in order, nothing dropped. Each page is a list of
+    ("day", name) and ("event", entry) rows; a day's name leads its events and
+    is repeated at the top of a later page when that day carries over, so every
+    page says which day it shows. cost(entry) is the lines an event's title
+    takes (1 or 2); an event is never split across pages, and a lone event is
+    clipped rather than dropped when even one won't fit under its day's name."""
+    pages, page, used, shown_day = [], [], 0, None
+
+    def flush():
+        nonlocal page, used, shown_day
+        if page:
+            pages.append(page)
+        page, used, shown_day = [], 0, None
+
+    for name, entries in days:
         for e in entries:
             c = cost(e)
-            if shown == 0:
-                c = min(c, budget)      # the first event always shows, clipped
-            elif spent + c > budget:
-                break
-            shown += 1
-            spent += c
-        out.append(("day", (name, len(entries) - shown)))
-        out += [("event", e) for e in entries[:shown]]
-        used += 1 + spent
-    return out
+            header = 0 if name == shown_day else 1
+            if page and used + header + c > lines:
+                flush()
+            if not page:
+                c = min(c, lines - 1)   # fresh page: clip under the day's name
+            if name != shown_day:
+                page.append(("day", name))
+                used += 1
+                shown_day = name
+            page.append(("event", e))
+            used += c
+    flush()
+    return pages
 
 
 class ScreenStatus(PanelScreen):
@@ -139,25 +143,30 @@ class ScreenStatus(PanelScreen):
         today = p.ha.now().date()
         days = [(day_name(day, today), entries) for day, entries in p.upcoming()]
         width = LEFT_WIDTH - AGENDA_TIME
-        lines = AGENDA_LINES if p.read_only else AGENDA_LINES - 2
-        # An event's title wraps to a second line when it won't fit on one, so
-        # it costs fit() one line or two; its time sits on the first line only.
-        rows = fit(days, lines, lambda e: len(wrap(self.title_text(e), AGENDA_SIZE, width, 2)))
+        rows = AGENDA_LINES if p.read_only else AGENDA_LINES - 2
+        # A busy day won't fit: break the whole agenda into pages and cycle
+        # through them on the forecast's cadence, so every event is seen in
+        # turn. Each title wraps to at most two lines (its time on the first).
+        pages = paginate(days, rows, lambda e: len(wrap(self.title_text(e), AGENDA_SIZE, width, 2)))
+        page_i = int(p.now() // p.cfg.NEWS_CYCLE_SECONDS) % len(pages) if pages else 0
+        page = pages[page_i] if pages else []
         slot = 0
-        for row in rows:
-            if slot >= AGENDA_LINES:
+        for row in page:
+            if slot >= rows:
                 break
             if row[0] == "day":
                 left, right = self.agenda[slot]
-                name, more = row[1]
-                left.set(name, colours.ORANGE)
-                right.set(f"+{more} MORE" if more else "", colours.GREY_BLUE)
+                left.set(row[1], colours.ORANGE)
+                # On the page's first line, say which page, so a cycling agenda
+                # never looks like events have gone missing.
+                right.set(f"{page_i + 1}/{len(pages)}" if slot == 0 and len(pages) > 1 else "",
+                          colours.GREY_BLUE)
                 slot += 1
             else:
                 e = row[1]
                 gold = e["now"] or e["soon"]
                 when = "NOW" if e["now"] else e["when"]
-                for n, line in enumerate(wrap(self.title_text(e), AGENDA_SIZE, width, min(2, AGENDA_LINES - slot))):
+                for n, line in enumerate(wrap(self.title_text(e), AGENDA_SIZE, width, min(2, rows - slot))):
                     left, right = self.agenda[slot]
                     left.set(when if n == 0 else "", colours.GOLD if gold else colours.BEIGE)
                     right.set(line, colours.GOLD if gold else colours.BLUE)
