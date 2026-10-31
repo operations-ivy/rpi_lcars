@@ -17,6 +17,7 @@ from panel.lock import PanelLock
 from panel.night import Night
 from screens.status import ScreenStatus
 from ui.ui import UserInterface
+from ui import colours
 from ui.widgets.panel_widgets import LcarsArrow, LcarsHeader, LcarsKey, LcarsLabel
 from test_weather import FakeWeb, make as make_weather
 
@@ -499,12 +500,12 @@ def test_clock_network_and_sun_on_status():
 
 def test_sidebar_has_shopping_and_ps5_only_when_configured(monkeypatch):
     rig = Rig(web=quiet_web())
-    assert rig.key("SHOPPING") and rig.key("PS5")
-    assert rig.key("PS5").rect.bottom == 396          # the last block still ends where the frame's does
-    monkeypatch.setattr(config, "MEDIA_BUTTON", False)
-    rig = Rig(web=quiet_web())
-    assert "PS5" not in [k.text for k in rig.sprites(LcarsKey)]   # switched off, still configured
+    assert rig.key("SHOPPING")
+    assert "PS5" not in [k.text for k in rig.sprites(LcarsKey)]   # off unless asked for
+    assert rig.key("SHOPPING").rect.bottom == 396     # the last block still ends where the frame's does
     monkeypatch.setattr(config, "MEDIA_BUTTON", True)
+    rig = Rig(web=quiet_web())
+    assert rig.key("PS5").rect.bottom == 396
     monkeypatch.setattr(config, "SHOPPING_LIST", "")
     monkeypatch.setattr(config, "MEDIA_PLAYER", "")
     rig = Rig(web=quiet_web())
@@ -546,7 +547,8 @@ def test_shopping_list_empty_and_unavailable():
     assert "ADD ITEMS FROM THE HOME ASSISTANT APP" in rig.texts()
 
 
-def test_ps5_screen():
+def test_ps5_screen(monkeypatch):
+    monkeypatch.setattr(config, "MEDIA_BUTTON", True)
     rig = Rig(web=quiet_web())
     rig.ha._pictures[config.MEDIA_IMAGE] = ("k", png())
     rig.tap(rig.key("PS5"))
@@ -570,7 +572,7 @@ def test_status_leaves_shopping_and_the_ps5_to_their_screens():
     rig.tick()
     texts = rig.texts()
     assert "1 NEEDED" not in texts and "PLAYING ASTRO BOT" not in texts
-    assert rig.key("SHOPPING") and rig.key("PS5")
+    assert rig.key("SHOPPING")
 
 
 NOW = 1792540000.0
@@ -620,6 +622,21 @@ def feeds(**ages):
             "wigle": FakeFeed(WIGLE, ages.get("wigle", 5))}
 
 
+def test_alert_mode_turns_the_frame_and_keys_the_conditions_colour():
+    def frame(rig):
+        return rig.ui.screenSurface.get_at((105, 10))[:3]
+
+    def near(colour, want):     # the frame is scaled down, which shifts a level or two
+        return all(abs(a - b) <= 4 for a, b in zip(colour, want))
+
+    calm = Rig(web=quiet_web())
+    assert near(frame(calm), colours.SKY)
+    assert calm.ui.screenSurface.get_at((60, 209))[:3] == (0, 0, 0)     # the gap between keys is black
+    red = Rig(web=quiet_web(), feeds=feeds(), now=lambda: NOW)
+    assert near(frame(red), (255, 85, 85))
+    assert red.key("WIGLE").colour != colours.GOLD
+
+
 def test_navigation_top_bar_and_sidebar():
     rig = Rig(web=quiet_web(), feeds=feeds(), now=lambda: NOW)
     status, thermostat = rig.key("STATUS"), rig.key("THERMOSTAT")
@@ -627,14 +644,14 @@ def test_navigation_top_bar_and_sidebar():
     assert thermostat.rect.top == 145                                   # the big sidebar block
     assert all(k.rect.left == 16 for k in rig.sprites(LcarsKey) if k.rect.top != 56)  # the rest on the left
     assert rig.key("RED ALERT").rect.top == 211                         # named for the condition
-    lower = [rig.key(t) for t in ("WIGLE", "SHOPPING", "PS5")]
+    lower = [rig.key(t) for t in ("WIGLE", "SHOPPING")]
     assert lower[0].rect.top == 249 and lower[-1].rect.bottom == 396
     assert "CLIMATE" not in [k.text for k in rig.sprites(LcarsKey)]    # THERMOSTAT is the controls
     assert "NCC-1701-D" in [k.text for k in rig.sprites(LcarsKey)]     # the registry beside STATUS
     rig.shot("17-status-nav")
     rig.tap(thermostat)
     assert rig.screen == "thermostat"
-    lower = [rig.key(t) for t in ("WIGLE", "SHOPPING", "PS5", "UNLOCK")]
+    lower = [rig.key(t) for t in ("WIGLE", "SHOPPING", "UNLOCK")]
     assert lower[-1].rect.bottom == 396
     rig.shot("18-thermostat-locked")
     rig.tap(rig.key("STATUS"))
