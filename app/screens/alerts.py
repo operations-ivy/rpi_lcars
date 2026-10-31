@@ -9,7 +9,7 @@ from ui.widgets.panel_widgets import LcarsHeader, LcarsKey, LcarsLabel
 
 RIGHT_X = 470
 ROW_TOP, ROW_HEIGHT, INFRA_ROWS = TOP + 92, 26, 8
-MARK = (12, 18)  # the coloured block before each line
+MARK, TEXT_AT = (20, 14), 28  # the coloured pill before each line, and the text after it
 FEED_VALUE = RIGHT_X + 105
 DETAIL_TOP, DETAIL_ROWS = TOP + 190, 4
 SEVERITY_COLOURS = {"critical": colours.RED, "warning": colours.GOLD, "info": colours.GREY_BLUE}
@@ -32,16 +32,16 @@ class ScreenAlerts(PanelScreen):
         self.infra = []
         for i in range(INFRA_ROWS):
             top = ROW_TOP + i * ROW_HEIGHT
-            mark = self.add(LcarsKey(colours.BLUE, (top + 2, LEFT), MARK, "", pill=True), layer=2)
-            label = self.add(LcarsLabel(colours.BLUE, (top, LEFT + 22), "", 1.1, max_width=RIGHT_X - LEFT - 42))
+            mark = self.add(LcarsKey(colours.BLUE, (top + 4, LEFT), MARK, "", pill=True), layer=2)
+            label = self.add(LcarsLabel(colours.BLUE, (top, LEFT + TEXT_AT), "", 1.1, max_width=RIGHT_X - LEFT - 48))
             self.infra.append((mark, label))
 
         self.add(LcarsHeader(colours.ORANGE, (TOP + 62, RIGHT_X), RIGHT - RIGHT_X, "OVERWATCH", 1.3))
         self.feeds = []
         for i in range(3):
             top = ROW_TOP + i * ROW_HEIGHT
-            mark = self.add(LcarsKey(colours.BLUE, (top + 2, RIGHT_X), MARK, "", pill=True), layer=2)
-            name = self.add(LcarsLabel(colours.PURPLE, (top, RIGHT_X + 22), "", 1.1))
+            mark = self.add(LcarsKey(colours.BLUE, (top + 4, RIGHT_X), MARK, "", pill=True), layer=2)
+            name = self.add(LcarsLabel(colours.PURPLE, (top, RIGHT_X + TEXT_AT), "", 1.1))
             word = self.add(LcarsLabel(colours.BLUE, (top, FEED_VALUE), "", 1.1, max_width=RIGHT - FEED_VALUE))
             self.feeds.append((mark, name, word))
         self.details = [self.add(LcarsLabel(colours.GREY_BLUE, (DETAIL_TOP + i * 24, RIGHT_X), "", 1.0,

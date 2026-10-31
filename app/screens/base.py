@@ -7,8 +7,8 @@ from datetime import datetime
 
 from datasources.network import get_ip_addresses
 from ui import colours
-from ui.widgets.background import LcarsBackgroundImage
-from ui.widgets.panel_widgets import LcarsBlock, LcarsCascade, LcarsKey, LcarsLabel
+from ui.widgets.frame import KEY_TINTS, LcarsFrame
+from ui.widgets.panel_widgets import LcarsBlock, LcarsCascade, LcarsKey, LcarsLabel, LcarsRunner
 from ui.widgets.screen import LcarsScreen
 
 # The frame's open area (x from 125 to 785, y from 100 to 440).
@@ -19,10 +19,10 @@ CORNER = 30
 # numbers from TITLE_LEFT up to TITLE_GAP short of the title.
 TITLE_RIGHT, TITLE_LEFT, TITLE_GAP, TITLE_SIZE = 783, 135, 24, 2
 
-# Blocks, (top, left) and size, matching lcars_screen_1.png. The top bar's two
+# Blocks, (top, left) and size, fitting ui/widgets/frame.py. The top bar's two
 # long blocks (both of its rows) hold STATUS and the registry.
 TOP_BAR = {
-    "status": ((56, 412), (149, 41)),
+    "status": ((56, 412), (147, 41)),
     "registry": ((56, 563), (179, 41)),
 }
 SIDEBAR = {
@@ -31,8 +31,13 @@ SIDEBAR = {
     "lower": ((249, 16), (98, 147)),
 }
 # The sidebar's blocks go to the screens in order; the lower block is cut into
-# as many as are left, with the background's 4 px black gap between.
+# as many as are left, with the frame's 4 px black gap between.
 GAP = 4
+# Each block's number, as LCARS numbers its blocks. Decoration only.
+CODES = {"status": "01-1701", "registry": "47-1982", "thermostat": "02-2700", "alerts": "03-4077", "wigle": "04-0669",
+         "calendar": "05-1031", "shopping": "06-4700", "media": "07-0005", "action": "08-3127"}
+# The small blocks in the bottom bar's first segment.
+RUNNER = ((446, 296), (62, 18))
 # The top bar's second block: a registry, like the ship on STATUS.
 REGISTRY = "NCC-1701-D"
 # STATUS on the top bar, larger than the sidebar's text.
@@ -51,7 +56,8 @@ class PanelScreen(LcarsScreen):
 
     def setup(self, all_sprites):
         self.sprites = all_sprites
-        all_sprites.add(LcarsBackgroundImage("assets/lcars_screen_1.png"), layer=0)
+        self.frame = LcarsFrame()
+        all_sprites.add(self.frame, layer=0)
         self.clock = self.add(LcarsLabel(colours.BLACK, (13, CORNER), "", 1.5))
         title = self.add(LcarsLabel(colours.ORANGE, (0, TITLE_RIGHT), self.title, TITLE_SIZE, "right"))
         width = title.rect.left - TITLE_GAP - TITLE_LEFT
@@ -60,6 +66,7 @@ class PanelScreen(LcarsScreen):
         self.add(LcarsLabel(colours.BLACK, (444, 470), next(iter(get_ip_addresses()), "")))
         self.stardate = self.add(LcarsLabel(colours.BLACK, (46, CORNER), "", 0.7))
         self.link = self.add(LcarsLabel(colours.BLUE, (BOTTOM - 25, RIGHT), "", 1.2, "right"))
+        self.runner = self.add(LcarsRunner(*RUNNER))
         self.build()
         self.refresh()
 
@@ -67,9 +74,9 @@ class PanelScreen(LcarsScreen):
         self.sprites.add(sprite, layer=layer)
         return sprite
 
-    def sidebar(self, slot, colour, text, handler=None):
+    def sidebar(self, slot, colour, text, handler=None, code=""):
         pos, size = SIDEBAR[slot] if isinstance(slot, str) else slot
-        return self.add(LcarsKey(colour, pos, size, text, handler, align="corner"), layer=2)
+        return self.add(LcarsKey(colour, pos, size, text, handler, align="corner", code=code), layer=2)
 
     def screens(self, action=None):
         """The sidebar's blocks, in order: (name, colour, text, handler), and
@@ -99,13 +106,11 @@ class PanelScreen(LcarsScreen):
         pos, size = TOP_BAR["status"]
         self.nav_keys = {"status": self.add(LcarsKey(colours.BEIGE, pos, size, "STATUS",
                                                      None if here == "status" else self.go_status,
-                                                     text_size=STATUS_SIZE, align="corner"), layer=2)}
-        self.add(LcarsKey(colours.ORANGE, *TOP_BAR["registry"], REGISTRY, align="corner"), layer=2)
-        # The background splits only the bar's upper row there: black the
-        # whole gap between the two.
-        (top, left), (width, height) = TOP_BAR["status"]
-        gap = TOP_BAR["registry"][0][1] - (left + width)
-        self.add(LcarsBlock(colours.BLACK, (top, left + width), (gap, height)), layer=2)
+                                                     text_size=STATUS_SIZE, align="corner",
+                                                     code=CODES["status"]), layer=2)}
+        self.nav_keys["registry"] = self.add(LcarsKey(colours.ORANGE, *TOP_BAR["registry"], REGISTRY, align="corner",
+                                                      code=CODES["registry"]), layer=2)
+        self.key_colours = {"status": colours.BEIGE, "registry": colours.ORANGE}
         blocks = self.screens(action)
         slots = [SIDEBAR["upper"], SIDEBAR["middle"]][:len(blocks)]
         rest = len(blocks) - len(slots)
@@ -119,15 +124,24 @@ class PanelScreen(LcarsScreen):
                     self.add(LcarsBlock(colours.BLACK, (top + h, left), (width, GAP)), layer=2)
                 top += h + GAP
         for slot, (name, colour, text, handler) in zip(slots, blocks):
-            self.nav_keys[name] = self.sidebar(slot, colour, text, None if here == name else handler)
+            self.nav_keys[name] = self.sidebar(slot, colour, text, None if here == name else handler, CODES[name])
+            self.key_colours[name] = colour
         return self.nav_keys.get("action")
 
     def show_condition(self):
-        key = self.nav_keys.get("alerts") if hasattr(self, "nav_keys") else None
-        if key is not None:
-            text, colour = CONDITION[self.panel.alerts()["condition"]]
-            key.set_text(text)
-            key.set_colour(colour)
+        """Alert mode: under a red or yellow condition the frame and the keys
+        take its colours, and the ALERTS block names it."""
+        condition = self.panel.alerts()["condition"]
+        self.frame.set(condition)
+        keys = getattr(self, "nav_keys", {})
+        tint = KEY_TINTS.get(condition)
+        for i, (name, key) in enumerate(keys.items()):
+            if name not in ("alerts", "action"):
+                key.set_colour(tint[i % 3] if tint else self.key_colours[name])
+        if "alerts" in keys:
+            text, colour = CONDITION[condition]
+            keys["alerts"].set_text(text)
+            keys["alerts"].set_colour(colour)
 
     def link_text(self):
         """(ok, text) for the bottom right line."""
@@ -149,6 +163,7 @@ class PanelScreen(LcarsScreen):
         self.show_condition()
         if self.cascade is not None:
             self.cascade.tick(self.panel.clock())
+        self.runner.tick(self.panel.clock())
         if self.panel.night.dark and self.name != "status":
             self.go_status()
         else:

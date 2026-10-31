@@ -24,10 +24,11 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
     metrics = Metrics()
     entities = [config.THERMOSTAT, config.LOCK_ENTITY, config.SETPOINT_MIN_ENTITY,
-                config.SETPOINT_MAX_ENTITY, config.SUN_ENTITY, config.WAN_ENTITY, config.MEDIA_PLAYER]
+                config.SETPOINT_MAX_ENTITY, config.SUN_ENTITY, config.WAN_ENTITY]
+    media = [e for e in (config.MEDIA_PLAYER, config.MEDIA_IMAGE) if e] if config.MEDIA_BUTTON else []
     ha = HomeAssistant(config.HA_URL, config.HA_TOKEN, [e for e in entities if e],
                        config.HA_POLL_SECONDS, metrics, todo=config.SHOPPING_LIST or None,
-                       pictures=[e for e in (config.MEDIA_PLAYER, config.MEDIA_IMAGE) if e],
+                       pictures=media,
                        calendars=config.CALENDARS, calendar_seconds=config.CALENDAR_POLL_SECONDS,
                        calendar_months=config.CALENDAR_MONTHS)
     ha.start()
