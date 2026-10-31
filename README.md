@@ -51,6 +51,7 @@ The above assumes you want to run the interface from the ```/home/pi/rpi_lcars``
 
 # Credits
 
+- The panel's frame, bars and alert mode follow the design of [joernweissenborn/lcars](https://github.com/joernweissenborn/lcars), [louh/lcars](https://github.com/louh/lcars), [the R package lcars](https://github.com/leonawicz/lcars) and [LCARdS](https://github.com/snootched/lcards); no code is taken from them
 - LCARS graphical user interface is copyright [CBS Studios Inc.](http://www.cbs.com/) and is subject to [the fair use statute](https://en.wikipedia.org/wiki/LCARS#Legal)
 - LCARS images and audio assets from (what used to be) lcarscom.net and audio assets from [trekcore.com/audio/](http://trekcore.com/audio/)
 - Sample weather image from the [SABC](http://www.sabc.co.za)

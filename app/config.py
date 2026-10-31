@@ -64,9 +64,9 @@ SHOPPING_LIST = _str("LCARS_SHOPPING_LIST", "todo.shopping_list")
 # the game last played (the PlayStation Network integration's "Now playing").
 MEDIA_PLAYER = _str("LCARS_MEDIA_PLAYER", "media_player.playstation_5")
 MEDIA_IMAGE = _str("LCARS_MEDIA_IMAGE", "image.living_room_ps5_pw_now_playing")
-# The PS5 button (false hides it and keeps the screen): off when the sidebar
-# is too crowded for it.
-MEDIA_BUTTON = _bool("LCARS_MEDIA_BUTTON", True)
+# The PS5 button (false hides it and keeps the screen, and nothing is fetched
+# for it): off unless asked for.
+MEDIA_BUTTON = _bool("LCARS_MEDIA_BUTTON", False)
 # The CALENDAR screen: Home Assistant calendar entities, comma separated
 # (empty: no CALENDAR button), e.g. Google Calendar through HA's integration;
 # Google's sign-in stays in HA. This month and the MONTHS - 1 after it, read

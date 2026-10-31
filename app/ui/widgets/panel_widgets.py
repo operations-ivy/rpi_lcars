@@ -1,8 +1,10 @@
 """Widgets for the Home Assistant panel. Labels are centred (the stock
 LcarsButton puts them bottom right), and arrows and code dots are drawn: the
-LCARS font has no ▲, ▼ or ●."""
+LCARS font has no ▲, ▼ or ●. Rounded shapes are drawn large and scaled down:
+pygame's own curves are jagged."""
 import io
 import unicodedata
+from functools import lru_cache
 
 import pygame
 from pygame.font import Font
@@ -15,6 +17,20 @@ from ui.widgets.sprite import LcarsWidget
 FONT = "assets/swiss911.ttf"
 _fonts = {}
 _beep = []
+
+
+SMOOTH = 3
+
+
+@lru_cache(maxsize=256)
+def rounded(size, colour, left=0, right=0):
+    """A block on black, its left and right ends rounded to those radii."""
+    w, h = size
+    big = pygame.Surface((w * SMOOTH, h * SMOOTH))
+    pygame.draw.rect(big, colour, (0, 0, w * SMOOTH, h * SMOOTH),
+                     border_top_left_radius=left * SMOOTH, border_bottom_left_radius=left * SMOOTH,
+                     border_top_right_radius=right * SMOOTH, border_bottom_right_radius=right * SMOOTH)
+    return pygame.transform.smoothscale(big, size)
 
 
 def font(size=1.0):
@@ -105,6 +121,9 @@ class LcarsLabel(LcarsWidget):
         return False
 
 
+CODE_SIZE, CODE_MIN_HEIGHT = 0.6, 30
+
+
 class _Pressable(LcarsWidget):
     """Lights white while pressed; the handler runs on a release inside it.
     A disabled one doesn't light and doesn't run."""
@@ -155,24 +174,22 @@ class _Pressable(LcarsWidget):
 
 class LcarsKey(_Pressable):
     """A flat block with its label centred, or bottom right like the stock
-    sidebar blocks (align="corner"); pill=True rounds both ends."""
+    sidebar blocks (align="corner"); pill=True rounds both ends. A code, as
+    LCARS numbers its blocks, goes in the top left of one tall enough."""
 
-    def __init__(self, colour, pos, size, text, handler=None, text_size=1.0, align="center", pill=False):
-        self.text, self.font, self.align, self.pill = text, font(text_size), align, pill
+    def __init__(self, colour, pos, size, text, handler=None, text_size=1.0, align="center", pill=False, code=""):
+        self.text, self.font, self.align, self.pill, self.code = text, font(text_size), align, pill, code
         _Pressable.__init__(self, colour, pos, size, handler)
 
     def draw(self, surface, colour):
         w, h = surface.get_size()
-        if self.pill:
-            surface.fill(colours.BLACK)
-            pygame.draw.rect(surface, colour, (0, 0, w, h), border_radius=h // 2)
+        if self.pill or self.align == "left":
+            surface.blit(rounded((w, h), colour, h // 2, h // 2), (0, 0))
         else:
             surface.fill(colour)
         text = self.text
         if self.align == "left":
             # A rounded bar with the text from its left end, cut to fit.
-            surface.fill(colours.BLACK)
-            pygame.draw.rect(surface, colour, (0, 0, w, h), border_radius=h // 2)
             if self.font.size(text)[0] > w - h:
                 while len(text) > 1 and self.font.size(text + "...")[0] > w - h:
                     text = text[:-1]
@@ -185,6 +202,8 @@ class LcarsKey(_Pressable):
         else:
             rect = label.get_rect(center=(w // 2, h // 2))
         surface.blit(label, rect)
+        if self.code and h >= CODE_MIN_HEIGHT:
+            surface.blit(font(CODE_SIZE).render(self.code, True, colours.BLACK), (6, 3))
 
     def set_text(self, text):
         if text != self.text:
@@ -275,10 +294,12 @@ class LcarsArrow(_Pressable):
 
     def draw(self, surface, colour):
         w, h = surface.get_size()
-        pygame.draw.rect(surface, colour, (0, 0, w, h), border_radius=h // 3)
-        cx, cy, half = w // 2, h // 2, min(w, h) // 3
+        big = rounded((w, h), colour, h // 2, h // 2).copy()
+        big = pygame.transform.scale(big, (w * SMOOTH, h * SMOOTH))
+        cx, cy, half = w * SMOOTH // 2, h * SMOOTH // 2, min(w, h) * SMOOTH // 3
         tip, base = (cy - half, cy + half * 2 // 3) if self.up else (cy + half, cy - half * 2 // 3)
-        pygame.draw.polygon(surface, colours.BLACK, [(cx, tip), (cx - half, base), (cx + half, base)])
+        pygame.draw.polygon(big, colours.BLACK, [(cx, tip), (cx - half, base), (cx + half, base)])
+        surface.blit(pygame.transform.smoothscale(big, (w, h)), (0, 0))
 
 
 class LcarsDots(LcarsWidget):
@@ -308,13 +329,14 @@ class LcarsDots(LcarsWidget):
 
 
 class LcarsHeader(LcarsWidget):
-    """A section's name with a bar running on from it to width, rounded at
-    its far end: how LCARS heads a group instead of bare text."""
+    """A section's name set into a bar as tall as its capitals: a rounded cap,
+    the name, the bar, a short block in a second colour rounded at the far
+    end. How louh/lcars heads a group."""
 
-    BAR = 0.45  # the bar's height over the capitals'
+    GAP, END = 5, 3  # the black gaps, and the end block's length in bar heights
 
-    def __init__(self, colour, pos, width, text="", size=1.0, bar_colour=None):
-        self.colour, self.bar_colour, self.width = colour, bar_colour, width
+    def __init__(self, colour, pos, width, text="", size=1.0, bar_colour=None, end_colour=colours.PURPLE):
+        self.colour, self.bar_colour, self.end_colour, self.width = colour, bar_colour, end_colour, width
         self.font, self.text = font(size), None
         self.image = pygame.Surface((width, self.font.get_height())).convert()
         LcarsWidget.__init__(self, colour, pos, None)
@@ -325,17 +347,22 @@ class LcarsHeader(LcarsWidget):
         if (text, colour) == (self.text, getattr(self, "_drawn", None)):
             return
         self.text, self._drawn = text, colour
-        f, w = self.font, self.width
+        f, w, gap, bar_colour = self.font, self.width, self.GAP, self.bar_colour or colour
+        caps = f.render("H", True, colours.WHITE).get_bounding_rect()
+        top, bar, r = caps.top, caps.height, caps.height // 2
         self.image.fill(colours.BLACK)
-        label = f.render(text, True, colour)
-        self.image.blit(label, (0, 0))
-        start = label.get_width() + 10 if text else 0
-        # On the capitals' middle: the ascent has room above them.
-        bar = max(4, round(f.get_ascent() * self.BAR))
-        middle = round(f.get_ascent() * 0.58)
-        if w - start > bar:
-            pygame.draw.rect(self.image, self.bar_colour or colour, (start, middle - bar // 2, w - start, bar),
-                             border_top_right_radius=bar // 2, border_bottom_right_radius=bar // 2)
+        self.image.blit(rounded((bar, bar), bar_colour, r, 0), (0, top))
+        x = bar + gap
+        if text:
+            label = f.render(text, True, colour)
+            self.image.blit(label, (x, 0))
+            x += label.get_width() + gap
+        end = self.END * bar
+        if w - x > end + gap + bar:
+            self.image.blit(rounded((w - x - end - gap, bar), bar_colour), (x, top))
+            self.image.blit(rounded((end, bar), self.end_colour, 0, r), (w - end, top))
+        elif w - x > bar:
+            self.image.blit(rounded((w - x, bar), bar_colour, 0, r), (x, top))
 
     def handleEvent(self, event, clock):
         return False
@@ -394,6 +421,36 @@ class LcarsCascade(LcarsWidget):
         elif now - self.last >= self.interval:
             self.last = now
             self.lines = self.lines[1:] + [self.row()]
+            self.redraw()
+
+    def handleEvent(self, event, clock):
+        return False
+
+
+class LcarsRunner(LcarsWidget):
+    """A row of small blocks with one lit, the light stepping along every
+    interval: the idle tick of an LCARS panel. Decoration only."""
+
+    def __init__(self, pos, size, cells=5, gap=3, interval=1.0, colour=colours.ORANGE, dim=colours.PLUM):
+        self.cells, self.gap, self.interval, self.colour, self.dim = cells, gap, interval, colour, dim
+        self.image = pygame.Surface(size).convert()
+        self.at, self.last = 0, None
+        LcarsWidget.__init__(self, colours.BLACK, pos, None)
+        self.redraw()
+
+    def redraw(self):
+        w, h = self.image.get_size()
+        each = (w - self.gap * (self.cells - 1)) // self.cells
+        self.image.fill(colours.BLACK)
+        for i in range(self.cells):
+            self.image.fill(self.colour if i == self.at else self.dim, (i * (each + self.gap), 0, each, h))
+
+    def tick(self, now):
+        if self.last is None:
+            self.last = now
+        elif now - self.last >= self.interval:
+            self.last = now
+            self.at = (self.at + 1) % self.cells
             self.redraw()
 
     def handleEvent(self, event, clock):
