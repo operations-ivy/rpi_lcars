@@ -179,16 +179,20 @@ class LcarsKey(_Pressable):
     sidebar blocks (align="corner"); pill=True rounds both ends. A code, as
     LCARS numbers its blocks, goes in the top left of one tall enough, and is
     left out when the label would run into it (YELLOW ALERT on a short
-    block)."""
+    block). cap=True rounds only the right end, like a bar's end cap."""
 
-    def __init__(self, colour, pos, size, text, handler=None, text_size=1.0, align="center", pill=False, code=""):
+    def __init__(self, colour, pos, size, text, handler=None, text_size=1.0, align="center", pill=False, code="",
+                 cap=False):
         self.text, self.font, self.align, self.pill, self.code = text, font(text_size), align, pill, code
+        self.cap = cap
         _Pressable.__init__(self, colour, pos, size, handler)
 
     def draw(self, surface, colour):
         w, h = surface.get_size()
         if self.pill or self.align == "left":
             surface.blit(rounded((w, h), colour, h // 2, h // 2), (0, 0))
+        elif self.cap:
+            surface.blit(rounded((w, h), colour, 0, h // 2), (0, 0))
         else:
             surface.fill(colour)
         text = self.text

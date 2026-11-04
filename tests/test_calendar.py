@@ -359,14 +359,9 @@ def test_status_names_only_days_with_events(monkeypatch):
     assert "TODAY" not in r.texts() and "TOMORROW" not in r.texts()
 
 
-def test_status_with_the_lock_cycles_in_two_rows(monkeypatch):
-    # Not read-only: the lock takes the last two rows, leaving two for one
-    # day's name and one event a page - so the five events cycle one at a time.
-    r = rig(monkeypatch)
-    p0 = at_page(r, 0)
-    assert "TODAY" in p0 and any("BIN DAY" in t for t in p0) and "1/5" in p0
-    assert "TOMORROW" not in p0 and "CONTROLS SECURED" in p0
-    seen = []
-    for i in range(5):
-        seen += at_page(r, i)
-    assert "TOMORROW" in seen and any("TRIP" in t for t in seen) and any("LATE SHIFT" in t for t in seen)
+def test_status_with_the_lock_keeps_all_four_rows(monkeypatch):
+    # The lock is the bottom bar's key now, not two lines under the agenda:
+    # an unlockable panel pages the agenda just as a read-only one does.
+    pages = [at_page(rig(monkeypatch), i) for i in range(3)]
+    assert pages == [at_page(rig(monkeypatch, read_only=True), i) for i in range(3)]
+    assert not any("CONTROLS" in t for page in pages for t in page)

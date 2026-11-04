@@ -1,19 +1,21 @@
 """The resting screen: read-only, open to anyone. The house average leads
 (upstairs, downstairs and the thermostat are on the thermostat screen), with
 today's and tomorrow's events under it (a day with nothing left on isn't
-named) and the lock under those (not on a read-only panel); on the right, outside, the
+named); on the right, outside, the
 internet, the sun, the weather alerts and the Home Assistant link, each a
 label over its value, spread down the right side with a line from each
 label to a part of the Enterprise-D beside them (a master systems display);
 along the bottom, the forecast's next few periods in
-turn (or a news feed's headlines, if one is set; not links). The detail is a touch away."""
+turn (or a news feed's headlines, if one is set; not links). The bottom bar's
+end cap is the lock's key (not on a read-only panel): UNLOCK opens the keypad,
+SECURE locks the controls again. The detail is a touch away."""
 from datasources.calendar import day_name
 from panel import lock as L
 from panel.thermostat import fmt_temp
 from screens.base import BOTTOM, LEFT, RIGHT, TOP, PanelScreen
 from ui import colours
 from ui.widgets.msd import LcarsCallouts, LcarsShip
-from ui.widgets.panel_widgets import LcarsHeader, LcarsLabel, drawable, wrap
+from ui.widgets.panel_widgets import LcarsHeader, LcarsKey, LcarsLabel, drawable, wrap
 
 # Each row, its top, and the part of the ship its label's line goes to.
 ROWS = {"OUTSIDE": (TOP + 5, "bow"), "NETWORK": (TOP + 73, "saucer"), "SUN": (TOP + 144, "impulse"),
@@ -32,11 +34,12 @@ VALUE_WIDTH = BEND_X - COL_LABEL - 4
 NEWS_LINES, NEWS_SIZE, NEWS_HEIGHT = 2, 1.1, 24
 NEWS_TOP = BOTTOM - 25 - (NEWS_LINES - 1) * NEWS_HEIGHT
 # Under the average: today's and tomorrow's events under their day's name,
-# cycled a page at a time when they don't all fit; then the lock and its hint
-# (not read-only: it takes the last two lines' room).
+# cycled a page at a time when they don't all fit.
 LEFT_WIDTH = NEWS_WIDTH = COL_LABEL - LEFT - 20
 AGENDA_TOP, AGENDA_STEP, AGENDA_SIZE, AGENDA_LINES, AGENDA_TIME = TOP + 165, 21, 1.0, 4, 90
-LOCK_TOP = AGENDA_TOP + 2 * AGENDA_STEP + 4
+# The lock's key: the bottom bar's end cap, right of the address (the beige
+# block in ui/widgets/frame.py, 690 to 784 on the bar's 446 to 464).
+LOCK_KEY, LOCK_SIZE = ((446, 690), (94, 18)), 0.8
 
 
 def paginate(days, lines, cost):
@@ -108,8 +111,8 @@ class ScreenStatus(PanelScreen):
                         self.add(LcarsLabel(colours.BLUE, (AGENDA_TOP + i * AGENDA_STEP, LEFT + AGENDA_TIME), "",
                                             AGENDA_SIZE, max_width=LEFT_WIDTH - AGENDA_TIME)))
                        for i in range(AGENDA_LINES)]
-        self.lock_line = self.add(LcarsLabel(colours.ORANGE, (LOCK_TOP, LEFT), "", 1.2, max_width=LEFT_WIDTH))
-        self.hint = self.add(LcarsLabel(colours.GREY_BLUE, (LOCK_TOP + 27, LEFT), "", 0.9, max_width=LEFT_WIDTH))
+        self.lock_key = None if self.panel.read_only else self.add(
+            LcarsKey(colours.GOLD, *LOCK_KEY, "UNLOCK", self.go_authorize, text_size=LOCK_SIZE, cap=True), layer=2)
 
     def link_text(self):
         """Nothing on the bottom bar: the link is a row here."""
@@ -143,7 +146,7 @@ class ScreenStatus(PanelScreen):
         today = p.ha.now().date()
         days = [(day_name(day, today), entries) for day, entries in p.upcoming()]
         width = LEFT_WIDTH - AGENDA_TIME
-        rows = AGENDA_LINES if p.read_only else AGENDA_LINES - 2
+        rows = AGENDA_LINES
         # A busy day won't fit: break the whole agenda into pages and cycle
         # through them on the forecast's cadence, so every event is seen in
         # turn. Each title wraps to at most two lines (its time on the first).
@@ -198,17 +201,25 @@ class ScreenStatus(PanelScreen):
         self.values["WEATHER ALERTS"].set(
             alert, {"alert": colours.RED, "ok": colours.BLUE, "unknown": colours.ORANGE}[kind])
 
-        lock = p.lock
-        if p.read_only:  # the THERMOSTAT screen says PREVIEW; nothing to add here
-            self.lock_line.set("")
-            self.hint.set("")
-            return
-        if lock.remote == L.HARD_LOCKED:
-            line, hint, colour = "CONTROLS LOCKED BY HOME ASSISTANT", "UNLOCK FROM HOME ASSISTANT", colours.RED
-        elif lock.can_change:
-            line, hint, colour = "CONTROLS OPEN", "TOUCH THERMOSTAT TO ADJUST", colours.GOLD
-        else:
-            line, hint, colour = "CONTROLS SECURED", "TOUCH THERMOSTAT, THEN UNLOCK, TO ADJUST", colours.ORANGE
-        self.lock_line.set(line, colour)
-        self.hint.set(hint)
+        self.show_lock()
 
+    def show_lock(self):
+        """The end cap: UNLOCK while secured, SECURE while open, greyed while
+        Home Assistant holds it locked."""
+        if self.lock_key is None:
+            return
+        lock = self.panel.lock
+        if lock.remote == L.HARD_LOCKED:
+            text, handler, colour = "HA LOCKED", None, colours.RED
+        elif lock.can_change:
+            text, handler, colour = "SECURE", self.secure, colours.RED_BROWN
+        else:
+            text, handler, colour = "UNLOCK", self.go_authorize, colours.GOLD
+        self.lock_key.set_text(text)
+        self.lock_key.set_colour(colour)
+        self.lock_key.handler = handler
+        self.lock_key.set_enabled(handler is not None)
+
+    def secure(self, *_):
+        self.panel.lock.lock()
+        self.panel.metrics.inc("lcars_relocks_total", reason="button")

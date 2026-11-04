@@ -190,14 +190,28 @@ def test_status_is_an_overview(alert_rig):
     rig.shot("1-status")
 
 
-def test_no_alert_shows_the_lock(rig):
-    assert "CONTROLS SECURED" in rig.texts()
+def test_the_lock_is_the_bottom_bars_end_cap(rig):
+    key = rig.key("UNLOCK")
+    assert (key.rect.left, key.rect.top, key.rect.right) == (690, 446, 784)   # right of the address
+    assert not any("CONTROLS" in t for t in rig.texts())               # no lock lines on STATUS
+    rig.tap(key)
+    assert rig.screen == "authorize"
+    rig.enter(PIN)
+    assert rig.screen == "thermostat"
+    rig.tap(rig.key("STATUS"))
+    rig.shot("26-status-open")
+    secure = rig.key("SECURE")
+    assert secure.rect.left == 690
+    rig.tap(secure)
+    assert rig.screen == "status" and not rig.lock.can_change
+    assert rig.metrics.get("lcars_relocks_total", reason="button") == 1
+    assert rig.key("UNLOCK")
 
 
 def test_an_alert_sits_on_the_right_beside_the_lock(alert_rig):
     alert = [s for s in alert_rig.sprites(LcarsLabel) if s.text == "FLOOD WATCH"][0]
     assert alert.rect.left == 470                                     # the right column
-    assert "CONTROLS SECURED" in alert_rig.texts()
+    assert alert_rig.key("UNLOCK")
 
 
 def to_keypad(rig):
@@ -337,7 +351,7 @@ def test_home_assistant_hard_lock(rig):
     assert "CONTROLS LOCKED" in rig.texts() and "BY HOME ASSISTANT" in rig.texts()
     assert rig.metrics.get("lcars_relocks_total", reason="hard_locked") == 1
     rig.tap(rig.key("STATUS"))
-    assert "CONTROLS LOCKED BY HOME ASSISTANT" in rig.texts()
+    assert not rig.key("HA LOCKED").enabled
     rig.shot("6-status-hard-locked")
     to_keypad(rig)
     assert rig.screen == "authorize"
@@ -348,7 +362,7 @@ def test_home_assistant_hard_lock(rig):
 def test_home_assistant_unlock_needs_no_code(rig):
     rig.ha.set(config.LOCK_ENTITY, "unlocked")
     rig.tick()
-    assert "CONTROLS OPEN" in rig.texts()
+    assert rig.key("SECURE")
     rig.tap(rig.key("THERMOSTAT"))
     assert rig.screen == "thermostat" and rig.key("SECURE")
 
@@ -397,7 +411,7 @@ def test_all_weather_down_is_graceful():
     web.down |= {"api.weather.gov", "api.open-meteo.com", "api.met.no"}
     rig = Rig(web=web)
     assert rig.panel.alert_line()[1] == "unknown" and rig.panel.weather_stale()
-    assert "CONTROLS SECURED" in rig.texts() and "--" in rig.texts()   # OUTSIDE
+    assert rig.key("UNLOCK") and "--" in rig.texts()                    # OUTSIDE
     rig.shot("10-weather-offline")
 
 
@@ -642,7 +656,8 @@ def test_navigation_top_bar_and_sidebar():
     status, thermostat = rig.key("STATUS"), rig.key("THERMOSTAT")
     assert status.rect.top == 56                                        # on the top bar
     assert thermostat.rect.top == 145                                   # the big sidebar block
-    assert all(k.rect.left == 16 for k in rig.sprites(LcarsKey) if k.rect.top != 56)  # the rest on the left
+    assert all(k.rect.left == 16 for k in rig.sprites(LcarsKey)
+               if k.rect.top not in (56, 446))                          # the rest on the left (446: the lock)
     assert rig.key("RED ALERT").rect.top == 211                         # named for the condition
     lower = [rig.key(t) for t in ("WIGLE", "SHOPPING")]
     assert lower[0].rect.top == 249 and lower[-1].rect.bottom == 396
