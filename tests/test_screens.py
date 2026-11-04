@@ -779,3 +779,16 @@ def test_wigle_offline():
     rig.panel.feeds["wigle"].age = lambda: None
     rig.tap(rig.key("WIGLE"))
     assert "WIGLE CONSOLE NOT ANSWERING" in rig.texts() and "WIGLE CONSOLE OFFLINE" in rig.texts()
+
+
+def test_a_long_condition_never_runs_into_its_blocks_code():
+    calm = Rig(web=quiet_web())
+    assert calm.key("ALERTS").code_shown                                # room for both
+    assert calm.key("THERMOSTAT").code_shown
+    red = Rig(web=quiet_web(), feeds=feeds(), now=lambda: NOW)
+    key = red.key("RED ALERT")
+    key.set_text("YELLOW ALERT")                                        # the widest condition
+    assert not key.code_shown                                           # the label wins, the code goes
+    assert red.key("THERMOSTAT").code_shown                             # tall blocks keep theirs
+    key.set_text("ALERTS")
+    assert key.code_shown                                               # and it comes back
