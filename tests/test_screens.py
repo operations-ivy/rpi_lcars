@@ -648,7 +648,7 @@ def test_alert_mode_turns_the_frame_and_keys_the_conditions_colour():
     assert calm.ui.screenSurface.get_at((60, 209))[:3] == (0, 0, 0)     # the gap between keys is black
     red = Rig(web=quiet_web(), feeds=feeds(), now=lambda: NOW)
     assert near(frame(red), (255, 85, 85))
-    assert red.key("WIGLE").colour != colours.GOLD
+    assert red.key("LIGHTS").colour != colours.GOLD
 
 
 def test_navigation_top_bar_and_sidebar():
@@ -659,14 +659,14 @@ def test_navigation_top_bar_and_sidebar():
     assert all(k.rect.left == 16 for k in rig.sprites(LcarsKey)
                if k.rect.top not in (56, 446))                          # the rest on the left (446: the lock)
     assert rig.key("RED ALERT").rect.top == 211                         # named for the condition
-    lower = [rig.key(t) for t in ("WIGLE", "SHOPPING")]
+    lower = [rig.key(t) for t in ("LIGHTS", "SHOPPING")]
     assert lower[0].rect.top == 249 and lower[-1].rect.bottom == 396
     assert "CLIMATE" not in [k.text for k in rig.sprites(LcarsKey)]    # THERMOSTAT is the controls
     assert "NCC-1701-D" in [k.text for k in rig.sprites(LcarsKey)]     # the registry beside STATUS
     rig.shot("17-status-nav")
     rig.tap(thermostat)
     assert rig.screen == "thermostat"
-    lower = [rig.key(t) for t in ("WIGLE", "SHOPPING", "UNLOCK")]
+    lower = [rig.key(t) for t in ("LIGHTS", "SHOPPING", "UNLOCK")]
     assert lower[-1].rect.bottom == 396
     rig.shot("18-thermostat-locked")
     rig.tap(rig.key("STATUS"))
@@ -775,7 +775,8 @@ def test_alerts_offline_and_all_clear():
     rig.shot("19-alerts-green")
 
 
-def test_wigle_screen():
+def test_wigle_screen(monkeypatch):
+    monkeypatch.setattr(config, "WIGLE_URL", "https://wigle.example")   # off by default: LIGHTS took its place
     rig = Rig(web=quiet_web(), feeds=feeds(wigle=90), now=lambda: NOW)
     rig.tap(rig.key("WIGLE"))
     assert rig.screen == "wigle"
@@ -787,7 +788,8 @@ def test_wigle_screen():
     rig.shot("20-wigle")
 
 
-def test_wigle_offline():
+def test_wigle_offline(monkeypatch):
+    monkeypatch.setattr(config, "WIGLE_URL", "https://wigle.example")
     rig = Rig(web=quiet_web(), feeds={"wigle": FakeFeed(None)}, now=lambda: NOW)
     rig.feeds = None
     rig.panel.feeds["wigle"].updated = None
@@ -807,3 +809,87 @@ def test_a_long_condition_never_runs_into_its_blocks_code():
     assert red.key("THERMOSTAT").code_shown                             # tall blocks keep theirs
     key.set_text("ALERTS")
     assert key.code_shown                                               # and it comes back
+
+
+def light(state="on", brightness=204, name="Bedroom"):
+    attrs = {"friendly_name": name}
+    if brightness is not None and state == "on":
+        attrs["brightness"] = brightness
+    return {"state": state, "attributes": attrs}
+
+
+def lights_rig(monkeypatch, lights=("light.bedroom", "light.hallway"), states=None):
+    monkeypatch.setattr(config, "LIGHTS", list(lights))
+    rig = Rig(web=quiet_web())
+    rig.ha._states.update(states if states is not None else {
+        "light.bedroom": light("on", 204, "Bedroom"), "light.hallway": light("off", None, "Hallway")})
+    rig.tap(rig.key("LIGHTS"))
+    assert rig.screen == "lights"
+    return rig
+
+
+def row_keys(rig, entity):
+    return [k for k in rig.sprites(LcarsKey) if getattr(k, "row", None) and k.row.entity == entity]
+
+
+def test_lights_takes_wigles_place_and_waits_for_bulbs(monkeypatch):
+    monkeypatch.setattr(config, "LIGHTS", [])
+    rig = Rig(web=quiet_web())
+    assert rig.key("LIGHTS").rect.top == 249 and "WIGLE" not in [k.text for k in rig.sprites(LcarsKey)]
+    rig.tap(rig.key("LIGHTS"))
+    assert "NO LIGHTS CONFIGURED" in rig.texts() and "ADD HOME ASSISTANT LIGHTS TO LCARS_LIGHTS" in rig.texts()
+    rig.shot("27-lights-none")
+
+
+def test_lights_show_and_stay_greyed_while_locked(monkeypatch):
+    rig = lights_rig(monkeypatch)
+    texts = rig.texts()
+    assert "BEDROOM" in texts and "ON 80%" in texts and "HALLWAY" in texts and "OFF" in texts
+    assert not any(k.enabled for k in row_keys(rig, "light.bedroom"))
+    rig.tap(row_keys(rig, "light.bedroom")[-1])
+    assert rig.ha.calls == []
+    rig.shot("28-lights-locked")
+
+
+def test_unlock_from_lights_comes_back_to_lights(monkeypatch):
+    rig = lights_rig(monkeypatch)
+    rig.tap(rig.key("UNLOCK"))
+    assert rig.screen == "authorize"
+    rig.enter(PIN)
+    assert rig.screen == "lights" and rig.key("SECURE")
+
+
+def test_lights_toggle_and_gathered_brightness(monkeypatch):
+    rig = lights_rig(monkeypatch)
+    rig.tap(rig.key("UNLOCK"))
+    rig.enter(PIN)
+    minus, plus, toggle = row_keys(rig, "light.hallway")
+    rig.tap(toggle)                                                       # on and off go at once
+    assert rig.ha.calls == [("light.toggle", {"entity_id": "light.hallway"})]
+    assert toggle.text == "ON"                                            # shown before HA reports it
+    minus, plus, toggle = row_keys(rig, "light.bedroom")
+    rig.tap(plus)
+    rig.tap(plus)
+    assert "ON 100%" in rig.texts() and len(rig.ha.calls) == 1             # gathered, not sent yet
+    rig.tap(plus)                                                         # at the top: nothing more
+    rig.clock.t += 2
+    rig.tick()
+    assert rig.ha.calls[-1] == ("light.turn_on", {"entity_id": "light.bedroom", "brightness_pct": 100})
+    assert rig.metrics.get("lcars_commands_total", action="light_brightness") == 1
+    rig.shot("29-lights-open")
+    rig.tap(rig.key("SECURE"))
+    assert rig.screen == "status" and not rig.lock.can_change
+
+
+def test_lights_unavailable_or_not_answered_yet(monkeypatch):
+    rig = lights_rig(monkeypatch, states={"light.bedroom": light("unavailable", None, "Bedroom")})
+    assert "UNAVAILABLE" in rig.texts() and "--" in rig.texts()           # the hallway hasn't answered
+    rig.tap(rig.key("UNLOCK"))
+    rig.enter(PIN)
+    assert not any(k.enabled for k in row_keys(rig, "light.bedroom"))
+
+
+def test_more_lights_than_rows(monkeypatch):
+    many = [f"light.l{i}" for i in range(7)]
+    rig = lights_rig(monkeypatch, lights=many, states={e: light("off", None, e) for e in many})
+    assert "+2 MORE IN LCARS_LIGHTS (THE FIRST 5 SHOWN)" in rig.texts()

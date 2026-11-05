@@ -26,7 +26,7 @@ def main():
     entities = [config.THERMOSTAT, config.LOCK_ENTITY, config.SETPOINT_MIN_ENTITY,
                 config.SETPOINT_MAX_ENTITY, config.SUN_ENTITY, config.WAN_ENTITY]
     media = [e for e in (config.MEDIA_PLAYER, config.MEDIA_IMAGE) if e] if config.MEDIA_BUTTON else []
-    ha = HomeAssistant(config.HA_URL, config.HA_TOKEN, [e for e in entities if e],
+    ha = HomeAssistant(config.HA_URL, config.HA_TOKEN, [e for e in entities if e] + config.LIGHTS,
                        config.HA_POLL_SECONDS, metrics, todo=config.SHOPPING_LIST or None,
                        pictures=media,
                        calendars=config.CALENDARS, calendar_seconds=config.CALENDAR_POLL_SECONDS,
