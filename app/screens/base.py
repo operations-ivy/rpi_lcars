@@ -34,7 +34,7 @@ SIDEBAR = {
 # as many as are left, with the frame's 4 px black gap between.
 GAP = 4
 # Each block's number, as LCARS numbers its blocks. Decoration only.
-CODES = {"status": "01-1701", "registry": "47-1982", "thermostat": "02-2700", "alerts": "03-4077", "wigle": "04-0669",
+CODES = {"status": "01-1701", "registry": "47-1982", "thermostat": "02-2700", "alerts": "03-4077", "lights": "04-2364", "wigle": "04-0669",
          "calendar": "05-1031", "shopping": "06-4700", "media": "07-0005", "action": "08-3127"}
 # The small blocks in the bottom bar's first segment.
 RUNNER = ((446, 296), (62, 18))
@@ -85,6 +85,8 @@ class PanelScreen(LcarsScreen):
         out = [("thermostat", colours.ORANGE, "THERMOSTAT", self.go_thermostat)]
         if cfg.PROMETHEUS_URL or cfg.OVERWATCH_URL:
             out.append(("alerts", colours.BLUE, "ALERTS", self.go_alerts))
+        if cfg.HA_URL:
+            out.append(("lights", colours.GOLD, "LIGHTS", self.go_lights))
         if cfg.WIGLE_URL:
             out.append(("wigle", colours.GOLD, "WIGLE", self.go_wigle))
         if cfg.CALENDARS:
@@ -206,14 +208,24 @@ class PanelScreen(LcarsScreen):
         self.leave()
         self.loadScreen(ScreenWigle(self.panel))
 
+    def go_lights(self, *_):
+        from screens.lights import ScreenLights
+        self.leave()
+        self.loadScreen(ScreenLights(self.panel))
+
     def go_authorize(self, *_):
         """The keypad, or the thermostat if it's open already."""
+        self.go_authorize_for("thermostat")
+
+    def go_authorize_for(self, then):
+        """The keypad, then the screen named then ("thermostat", "lights")
+        once it opens; straight there if it's open already."""
         if self.panel.read_only or self.panel.lock.can_change:
-            self.go_thermostat()
+            getattr(self, f"go_{then}")()
             return
         from screens.authorize import ScreenAuthorize
         self.leave()
-        self.loadScreen(ScreenAuthorize(self.panel))
+        self.loadScreen(ScreenAuthorize(self.panel, then))
 
     def leave(self):
         """Called before switching away."""

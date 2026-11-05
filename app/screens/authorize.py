@@ -17,6 +17,13 @@ class ScreenAuthorize(PanelScreen):
     name = "authorize"
     title = "AUTHORIZATION REQUIRED"
 
+    def __init__(self, panel, then="thermostat"):
+        PanelScreen.__init__(self, panel)
+        self.then = then  # the screen the code opens
+
+    def go_on(self):
+        getattr(self, f"go_{self.then}")()
+
     def build(self):
         self.nav(("SECURED", None, colours.PEACH))
 
@@ -60,7 +67,7 @@ class ScreenAuthorize(PanelScreen):
         p.metrics.inc("lcars_unlock_attempts_total", result=result)
         if result == L.GRANTED:
             self.sound_granted.play()
-            self.go_thermostat()
+            self.go_on()
             return
         self.sound_deny.play()
         if result == L.DENIED:
@@ -72,7 +79,7 @@ class ScreenAuthorize(PanelScreen):
         p = self.panel
         lock = p.lock
         if lock.can_change:  # opened from Home Assistant meanwhile
-            self.go_thermostat()
+            self.go_on()
             return
         if lock.idle:
             self.go_status()

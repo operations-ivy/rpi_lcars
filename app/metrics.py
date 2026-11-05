@@ -44,7 +44,7 @@ def _labels(labels):
 KNOWN = {
     "lcars_unlock_attempts_total": ("result", ("granted", "denied", "locked_out", "hard_locked", "no_code")),
     "lcars_relocks_total": ("reason", ("idle", "dark", "hard_locked", "button")),
-    "lcars_commands_total": ("action", ("set_temperature", "set_hvac_mode", "shopping_item")),
+    "lcars_commands_total": ("action", ("set_temperature", "set_hvac_mode", "shopping_item", "light_toggle", "light_brightness")),
     "lcars_taps_total": ("woke", ("true", "false")),
 }
 

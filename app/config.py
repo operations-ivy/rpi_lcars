@@ -91,8 +91,14 @@ PROMETHEUS_URL = _str("LCARS_PROMETHEUS_URL", "https://prometheus.brick.nozdormu
 OVERWATCH_URL = _str("LCARS_OVERWATCH_URL", "https://overwatch.brick.nozdormu.cloud").rstrip("/")
 ALERTS_POLL_SECONDS = _float("LCARS_ALERTS_POLL_SECONDS", 30)
 # The WIGLE screen: wigle-sync's runs and the WiGLE account, from
-# wigle-console's /api/status (empty: no WIGLE button). It takes ~10 s cold.
-WIGLE_URL = _str("LCARS_WIGLE_URL", "https://wigle.brick.nozdormu.cloud").rstrip("/")
+# wigle-console's /api/status (empty, the default since LIGHTS took its
+# place: no WIGLE button; brick9000's board still shows wigle-sync). It
+# takes ~10 s cold.
+WIGLE_URL = _str("LCARS_WIGLE_URL").rstrip("/")
+# The LIGHTS screen's lights: Home Assistant light entities, comma separated,
+# in the order shown (the first 5). A Hue room or group is a light.* too.
+# Empty: the screen says none are configured.
+LIGHTS = [e.strip() for e in _str("LCARS_LIGHTS").split(",") if e.strip()]
 WIGLE_POLL_SECONDS = _float("LCARS_WIGLE_POLL_SECONDS", 120)
 # Along the bottom of STATUS, one at a time: the weather's next
 # FORECAST_PERIODS 12-hour periods (0: none), or instead an RSS feed's top

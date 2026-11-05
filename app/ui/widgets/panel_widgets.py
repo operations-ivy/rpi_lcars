@@ -122,6 +122,8 @@ class LcarsLabel(LcarsWidget):
 
 
 CODE_SIZE, CODE_MIN_HEIGHT = 0.6, 30
+# The clear space kept between a block's code and its label, in px.
+CODE_CLEARANCE = 4
 
 
 class _Pressable(LcarsWidget):
@@ -175,16 +177,22 @@ class _Pressable(LcarsWidget):
 class LcarsKey(_Pressable):
     """A flat block with its label centred, or bottom right like the stock
     sidebar blocks (align="corner"); pill=True rounds both ends. A code, as
-    LCARS numbers its blocks, goes in the top left of one tall enough."""
+    LCARS numbers its blocks, goes in the top left of one tall enough, and is
+    left out when the label would run into it (YELLOW ALERT on a short
+    block). cap=True rounds only the right end, like a bar's end cap."""
 
-    def __init__(self, colour, pos, size, text, handler=None, text_size=1.0, align="center", pill=False, code=""):
+    def __init__(self, colour, pos, size, text, handler=None, text_size=1.0, align="center", pill=False, code="",
+                 cap=False):
         self.text, self.font, self.align, self.pill, self.code = text, font(text_size), align, pill, code
+        self.cap = cap
         _Pressable.__init__(self, colour, pos, size, handler)
 
     def draw(self, surface, colour):
         w, h = surface.get_size()
         if self.pill or self.align == "left":
             surface.blit(rounded((w, h), colour, h // 2, h // 2), (0, 0))
+        elif self.cap:
+            surface.blit(rounded((w, h), colour, 0, h // 2), (0, 0))
         else:
             surface.fill(colour)
         text = self.text
@@ -202,8 +210,14 @@ class LcarsKey(_Pressable):
         else:
             rect = label.get_rect(center=(w // 2, h // 2))
         surface.blit(label, rect)
+        self.code_shown = False
         if self.code and h >= CODE_MIN_HEIGHT:
-            surface.blit(font(CODE_SIZE).render(self.code, True, colours.BLACK), (6, 3))
+            code = font(CODE_SIZE).render(self.code, True, colours.BLACK)
+            # Compare the inked glyphs, not the font boxes, which overlap anyway.
+            ink = code.get_bounding_rect().move(6, 3).inflate(CODE_CLEARANCE * 2, CODE_CLEARANCE * 2)
+            if not ink.colliderect(label.get_bounding_rect().move(rect.topleft)):
+                surface.blit(code, (6, 3))
+                self.code_shown = True
 
     def set_text(self, text):
         if text != self.text:
