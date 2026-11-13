@@ -58,7 +58,8 @@ def thermostat(mode="heat", **attrs):
 
 
 class Rig:
-    def __init__(self, hour=12, states=None, web=None, colour_level=1.0, room=None, feeds=None, now=None):
+    def __init__(self, hour=12, states=None, web=None, colour_level=1.0, room=None, feeds=None, now=None,
+                 pictures=None, loader=None):
         os.chdir(APP)
         self.clock = Clock()
         self.hour = hour
@@ -81,7 +82,8 @@ class Rig:
         self.weather = make_weather(self.web, self.metrics)
         self.weather.poll()
         self.panel = Panel(self.ha, self.lock, self.night, self.metrics, clock=self.clock, weather=self.weather,
-                           room=room, feeds=feeds, **({"now": now} if now else {}))
+                           room=room, feeds=feeds, pictures=pictures, loader=loader,
+                           **({"now": now} if now else {}))
         self.ui = UserInterface(ScreenStatus(self.panel), (800, 480), fps=1000, audio=False, panel=self.panel,
                                 colour_level=colour_level)
         self.tick()

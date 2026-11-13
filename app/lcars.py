@@ -9,6 +9,7 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 import config  # noqa: E402
 from datasources.feeds import JsonFeed  # noqa: E402
 from datasources.news import NewsFeed  # noqa: E402
+from datasources.pictures import PictureSync  # noqa: E402
 from datasources.homeassistant import HomeAssistant  # noqa: E402
 from datasources.room import Room  # noqa: E402
 from datasources.weather import Weather  # noqa: E402
@@ -16,6 +17,7 @@ from metrics import Metrics  # noqa: E402
 from panel.context import Panel  # noqa: E402
 from panel.lock import PanelLock  # noqa: E402
 from panel.night import Backlight, Night, sun_times  # noqa: E402
+from panel.slideshow import Deck, Loader  # noqa: E402
 from screens.status import ScreenStatus  # noqa: E402
 from ui.ui import UserInterface  # noqa: E402
 
@@ -55,7 +57,16 @@ def main():
                      config.LOCKOUT_SECONDS, config.MAX_LOCKOUT_SECONDS)
     night = Night(config.NIGHT, config.NIGHT_LEVEL, config.DAY_LEVEL, config.WAKE_SECONDS, Backlight(),
                   sun=lambda: sun_times(ha.attrs(config.SUN_ENTITY)))
-    panel = Panel(ha, lock, night, metrics, weather=weather, room=room, feeds=feeds)
+    sync = None
+    if config.PICTURES_URL:
+        sync = PictureSync(config.PICTURES_URL, config.PICTURES_DIR, config.PICTURES_POLL_SECONDS,
+                           config.PICTURES_MAX, int(config.PICTURES_MAX_MB * 2**20),
+                           int(config.PICTURES_MIN_FREE_MB * 2**20), metrics)
+        sync.start()
+    loader = Loader()
+    loader.start()
+    panel = Panel(ha, lock, night, metrics, weather=weather, room=room, feeds=feeds,
+                  pictures=Deck(config.PICTURES_DIR), loader=loader)
     ui = UserInterface(ScreenStatus(panel), config.RESOLUTION, config.UI_PLACEMENT_MODE, config.FPS,
                        config.DEV_MODE, config.SOUND, fullscreen=config.FULLSCREEN, panel=panel,
                        colour_level=config.COLOUR_LEVEL)
@@ -63,6 +74,9 @@ def main():
         ui.tick()
     ha.stop()
     weather.stop()
+    loader.stop()
+    if sync:
+        sync.stop()
 
 
 if __name__ == "__main__":
