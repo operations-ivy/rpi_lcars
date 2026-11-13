@@ -53,13 +53,13 @@ def draw(kind, condition=None):
         pygame.draw.rect(s, colour, (x0 * SCALE, y0 * SCALE, (x1 - x0) * SCALE, (y1 - y0) * SCALE),
                          **{k: r * SCALE for k, r in radii.items()})
 
-    def elbow(role, x0, x1, y0, y1, bar, inner_x, top, left):
-        """A column (x0 to inner_x) turning into a bar (bar's rows) at the
+    def elbow(role, x0, x1, y0, y1, rows, inner_x, top, left):
+        """A column (x0 to inner_x) turning into a bar (rows) at the
         frame's top or bottom, towards the middle; the block runs x0..x1."""
         v, h = ("top" if top else "bottom"), ("left" if left else "right")
         box(role, x0, y0, x1, y1, **{f"border_{v}_{h}_radius": OUTER})
         cx0, cx1 = (inner_x, x1) if left else (x0, inner_x)
-        cy0, cy1 = (bar[1], y1) if top else (y0, bar[0])
+        cy0, cy1 = (rows[1], y1) if top else (y0, rows[0])
         box(None, cx0, cy0, cx1, cy1, **{f"border_{v}_{h}_radius": INNER})
 
     def bar(y, *segments, cap=None):

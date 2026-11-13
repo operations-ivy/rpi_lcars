@@ -116,10 +116,11 @@ class ScreenSlideshow(LcarsScreen):
             panel.metrics.inc("lcars_slideshow_pictures_total", result="shown")
             self.counter.set(f"{self.count:03d} OF {panel.pictures.count():03d}")
             self.asked = None
-        if self.asked is None and not self.ready and not self.ask() and self.shown is None:
-            return self.end()  # nothing at all to show
+        if self.asked is None and not self.ready:
+            if not self.ask() and self.shown is None:
+                return self.end()  # nothing at all to show
 
     def end(self):
-        from screens.status import ScreenStatus
+        from screens.status import ScreenStatus  # late, as in screens/base.py: the screens import each other
         self.panel.slideshow_ended()
         self.loadScreen(ScreenStatus(self.panel))

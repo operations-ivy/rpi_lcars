@@ -47,7 +47,7 @@ def decode(path, box):
         scale = min(box[0] / im.width, box[1] / im.height, MAX_ENLARGE)
         size = (max(1, round(im.width * scale)), max(1, round(im.height * scale)))
         if size != im.size:
-            im = im.resize(size, Image.LANCZOS)
+            im = im.resize(size, Image.Resampling.LANCZOS)
         return im.tobytes(), im.size
 
 
@@ -70,9 +70,12 @@ class Deck:
         every frame)."""
         now = self.clock()
         if self._counted is None or now - self._counted >= self.recheck_seconds:
-            self._count = len([p for p in pictures(self.folder) if self._key(p) not in self.bad])
+            self._count = len(self._usable())
             self._counted = now
         return self._count
+
+    def _usable(self):
+        return [p for p in pictures(self.folder) if self._key(p) not in self.bad]
 
     def _key(self, path):
         try:
@@ -88,7 +91,7 @@ class Deck:
                 if path.exists() and self._key(path) not in self.bad:
                     self._last = path
                     return path
-            found = [p for p in pictures(self.folder) if self._key(p) not in self.bad]
+            found = self._usable()
             self._count, self._counted = len(found), self.clock()
             self.rng.shuffle(found)
             # Not the same one twice in a row across rounds.
@@ -141,6 +144,7 @@ class Loader(threading.Thread):
             try:
                 pixels, size = self.decode(path, box)
             except Exception as e:  # noqa: BLE001 - a bad file is skipped, not fatal
+                # The type only: file names stay out of the logs (the photos are private).
                 log.warning("slideshow: a picture wouldn't decode (%s)", type(e).__name__)
                 pixels = size = None
             with self._cv:

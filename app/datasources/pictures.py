@@ -44,7 +44,7 @@ def shrink(data, fit=FIT):
     with Image.open(io.BytesIO(data)) as im:
         im.draft("RGB", (fit[0] * 2, fit[1] * 2))  # a JPEG decodes at a fraction of its size
         im = ImageOps.exif_transpose(im).convert("RGB")
-        im.thumbnail(fit, Image.LANCZOS)
+        im.thumbnail(fit, Image.Resampling.LANCZOS)
         out = io.BytesIO()
         im.save(out, "JPEG", quality=QUALITY, optimize=True)
         return out.getvalue()
@@ -58,7 +58,7 @@ def write_atomic(path, data):
         f.write(data)
         f.flush()
         os.fsync(f.fileno())
-    os.replace(tmp, path)
+    tmp.replace(path)
 
 
 class PictureSync(threading.Thread):
@@ -70,7 +70,7 @@ class PictureSync(threading.Thread):
         self.poll_seconds, self.max_count, self.max_bytes = poll_seconds, max_count, max_bytes
         self.min_free_bytes, self.metrics, self.opener = min_free_bytes, metrics, opener
         self.timeout, self.disk_free, self.fit, self.now = timeout, disk_free, fit, now
-        self._stop = threading.Event()
+        self._halt = threading.Event()  # not _stop: Thread has its own
         # Sizes of copies made but not kept (past MAX_BYTES), so the same photo
         # isn't fetched again every poll only to be dropped.
         self._sizes = {}
@@ -174,9 +174,9 @@ class PictureSync(threading.Thread):
         return result
 
     def run(self):
-        while not self._stop.is_set():
+        while not self._halt.is_set():
             self.poll()
-            self._stop.wait(self.poll_seconds)
+            self._halt.wait(self.poll_seconds)
 
     def stop(self):
-        self._stop.set()
+        self._halt.set()

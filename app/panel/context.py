@@ -11,6 +11,7 @@ from panel import infra
 from panel import lock as L
 from panel.night import sun_times
 from ui.utils import sound
+from ui.widgets.viewer import KINDS
 
 def forecast_line(period):
     """"TONIGHT: PARTLY CLOUDY, LOW 52°F, PRECIP 20%" for a forecast period."""
@@ -143,16 +144,18 @@ class Panel:
             return False
         if self.clock() - self.last_touch < minutes * 60 or self.night.is_night:
             return False
-        return self.alerts()["condition"] != "RED" and self.pictures.count() > 0
+        return not self._red() and self.pictures.count() > 0
 
     def slideshow_over(self):
         """A touch, night, a red condition or no pictures left."""
         return (not self.showing_pictures or self.night.is_night
-                or self.alerts()["condition"] == "RED" or self.pictures.count() == 0)
+                or self._red() or self.pictures.count() == 0)
+
+    def _red(self):
+        return self.alerts()["condition"] == "RED"
 
     def slideshow_frame(self):
         """The frame for this slideshow: the two in turn."""
-        from ui.widgets.viewer import KINDS
         kind = KINDS[self._frames % len(KINDS)]
         self._frames += 1
         return kind

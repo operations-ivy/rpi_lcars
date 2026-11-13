@@ -586,10 +586,11 @@ class LcarsPhoto(LcarsWidget):
             return
         if self.since is not None:  # still scanning in, or just finished
             self.image.fill(colours.BLACK)
+            revealed = self.revealed
             spot = self.picture.get_rect(center=(self.box[0] // 2, self.box[1] // 2))
-            edge = round(self.box[1] * self.revealed)
+            edge = round(self.box[1] * revealed)
             self.image.blit(self.picture, spot, area=pygame.Rect(0, 0, spot.width, max(0, edge - spot.top)))
-            if self.revealed < 1.0:
+            if revealed < 1.0:
                 pygame.draw.line(self.image, self.line_colour, (0, edge), (self.box[0], edge), 2)
             else:
                 self.since = None  # all in: nothing to redraw until the next

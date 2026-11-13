@@ -185,7 +185,7 @@ def test_decode_turns_the_photo_by_its_exif_and_fits_the_window(tmp_path):
 def test_decode_raises_on_a_bad_file(tmp_path):
     path = tmp_path / "x.jpg"
     path.write_bytes(b"nope")
-    with pytest.raises(Exception):
+    with pytest.raises(OSError):  # PIL's UnidentifiedImageError is one
         decode(path, (100, 100))
 
 
