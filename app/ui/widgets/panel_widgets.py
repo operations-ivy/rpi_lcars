@@ -524,3 +524,76 @@ class LcarsGauge(LcarsWidget):
 
     def handleEvent(self, event, clock):
         return False
+
+
+class LcarsBlinker(LcarsWidget):
+    """A block that steps through its colours every interval, a light on an
+    LCARS panel doing its job. Decoration only."""
+
+    def __init__(self, pos, size, steps=(colours.ORANGE, colours.PLUM), interval=0.8, phase=0):
+        self.steps, self.interval, self.at = steps, interval, phase % len(steps)
+        self.image = pygame.Surface(size).convert()
+        self.image.fill(steps[self.at])
+        self.last = None
+        LcarsWidget.__init__(self, colours.BLACK, pos, None)
+
+    def tick(self, now):
+        if self.last is None:
+            self.last = now
+        elif now - self.last >= self.interval:
+            self.last = now
+            self.at = (self.at + 1) % len(self.steps)
+            self.image.fill(self.steps[self.at])
+
+    def handleEvent(self, event, clock):
+        return False
+
+
+class LcarsPhoto(LcarsWidget):
+    """A photo in a window: decoded pixels (RGB bytes and their size), centred
+    on black. A new one scans in from the top over REVEAL seconds, a line in
+    the frame's colour at its edge."""
+
+    REVEAL = 0.8
+
+    def __init__(self, pos, size, line=colours.ORANGE):
+        self.box, self.line_colour = size, line
+        self.image = pygame.Surface(size).convert()
+        self.image.fill(colours.BLACK)
+        self.picture = None
+        self.since = None
+        self.now = 0.0
+        LcarsWidget.__init__(self, colours.BLACK, pos, None)
+
+    def set(self, pixels, size, now):
+        picture = pygame.image.frombuffer(pixels, size, "RGB")
+        self.picture = picture.convert()
+        self.since = now
+
+    def tick(self, now):
+        self.now = now
+
+    @property
+    def revealed(self):
+        """How much of the new photo is in, 0 to 1."""
+        if self.since is None:
+            return 1.0
+        return max(0.0, min(1.0, (self.now - self.since) / self.REVEAL))
+
+    def update(self, screen):
+        if self.picture is None:
+            screen.blit(self.image, self.rect)
+            return
+        if self.since is not None:  # still scanning in, or just finished
+            self.image.fill(colours.BLACK)
+            spot = self.picture.get_rect(center=(self.box[0] // 2, self.box[1] // 2))
+            edge = round(self.box[1] * self.revealed)
+            self.image.blit(self.picture, spot, area=pygame.Rect(0, 0, spot.width, max(0, edge - spot.top)))
+            if self.revealed < 1.0:
+                pygame.draw.line(self.image, self.line_colour, (0, edge), (self.box[0], edge), 2)
+            else:
+                self.since = None  # all in: nothing to redraw until the next
+        screen.blit(self.image, self.rect)
+
+    def handleEvent(self, event, clock):
+        return False
