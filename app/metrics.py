@@ -30,6 +30,12 @@ HELP = {
     "lcars_weather_alerts": ("gauge", "Active weather alerts (-1: unknown, the National Weather Service didn't answer)."),
     "lcars_weather_last_update_timestamp_seconds": ("gauge", "When the weather shown was fetched."),
     "lcars_weather_temperature_fahrenheit": ("gauge", "Outside temperature, from the weather source."),
+    "lcars_slideshow_active": ("gauge", "1 while the slideshow is showing."),
+    "lcars_slideshow_pictures_total": ("counter", "Pictures the slideshow put up, by result (shown, failed: wouldn't decode)."),
+    "lcars_pictures_sync_up": ("gauge", "1 while the Presto's photo library answers the mirror."),
+    "lcars_pictures_syncs_total": ("counter", "Mirror passes, by result (ok, error, disk_low, full)."),
+    "lcars_pictures_synced": ("gauge", "Pictures mirrored from the Presto's library on the panel."),
+    "lcars_pictures_bytes": ("gauge", "Disk the mirrored pictures take."),
 }
 
 
@@ -46,6 +52,7 @@ KNOWN = {
     "lcars_relocks_total": ("reason", ("idle", "dark", "hard_locked", "button")),
     "lcars_commands_total": ("action", ("set_temperature", "set_hvac_mode", "shopping_item", "light_toggle", "light_brightness")),
     "lcars_taps_total": ("woke", ("true", "false")),
+    "lcars_slideshow_pictures_total": ("result", ("shown", "failed")),
 }
 
 

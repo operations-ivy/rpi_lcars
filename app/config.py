@@ -134,5 +134,22 @@ NIGHT_LEVEL = _float("LCARS_NIGHT_LEVEL", 0.08)
 DAY_LEVEL = _float("LCARS_DAY_LEVEL", 1.0)
 WAKE_SECONDS = _float("LCARS_WAKE_SECONDS", 60)
 
+# The slideshow (rpi_lcars#21): after IDLE_MINUTES without a touch by day (0:
+# never), the pictures in PICTURES_DIR inside an animated frame, one every
+# SECONDS, until a touch. Night and a red condition end it.
+SLIDESHOW_IDLE_MINUTES = _float("LCARS_SLIDESHOW_IDLE_MINUTES", 15)
+SLIDESHOW_SECONDS = _float("LCARS_SLIDESHOW_SECONDS", 20)
+# Outside the repo, so a deploy never touches them.
+PICTURES_DIR = os.path.expanduser(_str("LCARS_PICTURES_DIR", "~/.local/share/lcars/pictures"))
+# The Presto's photo library (presto's upload page), mirrored into PICTURES_DIR
+# every POLL (empty: no mirror, only pictures put there by hand). Kept small:
+# panel-sized copies only, at most MAX of them and MAX_MB, the newest kept, and
+# nothing fetched while the disk has under MIN_FREE_MB free.
+PICTURES_URL = _str("LCARS_PICTURES_URL", "https://presto.brick.nozdormu.cloud").rstrip("/")
+PICTURES_POLL_SECONDS = _float("LCARS_PICTURES_POLL_SECONDS", 600)
+PICTURES_MAX = int(_float("LCARS_PICTURES_MAX", 200))
+PICTURES_MAX_MB = _float("LCARS_PICTURES_MAX_MB", 300)
+PICTURES_MIN_FREE_MB = _float("LCARS_PICTURES_MIN_FREE_MB", 2048)
+
 # Prometheus metrics on this port (0 turns them off).
 METRICS_PORT = int(_float("LCARS_METRICS_PORT", 8767))

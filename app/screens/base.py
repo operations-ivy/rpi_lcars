@@ -168,6 +168,8 @@ class PanelScreen(LcarsScreen):
         self.runner.tick(self.panel.clock())
         if self.panel.night.dark and self.name != "status":
             self.go_status()
+        elif self.panel.slideshow_due():
+            self.go_slideshow()
         else:
             self.refresh()
 
@@ -212,6 +214,11 @@ class PanelScreen(LcarsScreen):
         from screens.lights import ScreenLights
         self.leave()
         self.loadScreen(ScreenLights(self.panel))
+
+    def go_slideshow(self, *_):
+        from screens.slideshow import ScreenSlideshow
+        self.leave()
+        self.loadScreen(ScreenSlideshow(self.panel))
 
     def go_authorize(self, *_):
         """The keypad, or the thermostat if it's open already."""

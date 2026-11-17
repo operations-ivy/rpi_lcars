@@ -1,5 +1,6 @@
 """What every screen shares: Home Assistant, the weather, the homelab's feeds
-(alerts, wigle-sync), the lock, night and the metrics.
+(alerts, wigle-sync), the lock, night, the slideshow's pictures and the
+metrics.
 The UI loop calls tick() every frame and tap() on every touch; the screens
 read from it and never talk to Home Assistant themselves."""
 import time
@@ -10,6 +11,7 @@ from panel import infra
 from panel import lock as L
 from panel.night import sun_times
 from ui.utils import sound
+from ui.widgets.viewer import KINDS
 
 def forecast_line(period):
     """"TONIGHT: PARTLY CLOUDY, LOW 52°F, PRECIP 20%" for a forecast period."""
@@ -24,11 +26,18 @@ def forecast_line(period):
 
 class Panel:
     def __init__(self, ha, lock, night, metrics, cfg=config, clock=time.monotonic, weather=None, room=None,
-                 feeds=None, now=time.time):
+                 feeds=None, now=time.time, pictures=None, loader=None):
         self.ha, self.lock, self.night, self.metrics = ha, lock, night, metrics
         self.cfg, self.clock, self.weather, self.room = cfg, clock, weather, room
         self.feeds = feeds or {}  # "prometheus", "overwatch", "wigle": datasources.feeds.JsonFeed; "news": datasources.news.NewsFeed
         self.now = now
+        # The slideshow (panel/slideshow.py): a Deck of the pictures and the
+        # Loader that decodes them; without either, no slideshow.
+        self.pictures, self.loader = pictures, loader
+        self.last_touch = clock()
+        self.showing_pictures = False
+        self._frames = 0
+        metrics.set("lcars_slideshow_active", 0)
 
     @property
     def read_only(self):
@@ -95,8 +104,13 @@ class Panel:
     # Touches and frames.
 
     def tap(self):
-        """A touch. True when it only woke the dark screen: swallow it."""
+        """A touch. True when it only woke the panel, from the dark or from the
+        slideshow: swallow it."""
+        self.last_touch = self.clock()
         woke = self.night.tap()
+        if self.showing_pictures:
+            self.slideshow_ended()
+            woke = True
         self.metrics.inc("lcars_taps_total", woke=str(woke).lower())
         if not woke:
             self.lock.touch()
@@ -119,6 +133,41 @@ class Panel:
         sound.MUTED = self.night.is_night
         self.metrics.set("lcars_backlight_level", self.night.level)
         self.metrics.set("lcars_can_change", 1 if self.lock.can_change else 0)
+
+    # The slideshow.
+
+    def slideshow_due(self):
+        """Time for the pictures: idle long enough, by day, no red condition,
+        and pictures to show. Asked every frame, so the cheap tests go first."""
+        minutes = self.cfg.SLIDESHOW_IDLE_MINUTES
+        if self.showing_pictures or not minutes or self.pictures is None or self.loader is None:
+            return False
+        if self.clock() - self.last_touch < minutes * 60 or self.night.is_night:
+            return False
+        return not self._red() and self.pictures.count() > 0
+
+    def slideshow_over(self):
+        """A touch, night, a red condition or no pictures left."""
+        return (not self.showing_pictures or self.night.is_night
+                or self._red() or self.pictures.count() == 0)
+
+    def _red(self):
+        return self.alerts()["condition"] == "RED"
+
+    def slideshow_frame(self):
+        """The frame for this slideshow: the two in turn."""
+        kind = KINDS[self._frames % len(KINDS)]
+        self._frames += 1
+        return kind
+
+    def slideshow_started(self):
+        self.showing_pictures = True
+        self.metrics.set("lcars_slideshow_active", 1)
+
+    def slideshow_ended(self):
+        self.showing_pictures = False
+        self.last_touch = self.clock()  # the idle wait starts again
+        self.metrics.set("lcars_slideshow_active", 0)
 
     # What the screens show.
 

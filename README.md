@@ -43,6 +43,33 @@ sudo -u pi xinit /usr/bin/python3 lcars.py
 The above assumes you want to run the interface from the ```/home/pi/rpi_lcars``` folder as the ```pi``` user. To run as root, simply omit the ```sudo -u pi``` bit.
 
 
+# The slideshow (brick1982)
+
+After 15 minutes without a touch by day, the panel becomes a picture frame:
+the pictures inside an animated LCARS frame (two, in turn), until a touch
+brings STATUS back. That touch presses nothing. Night and a red alert end it,
+so an alert is never hidden behind a photo.
+
+The pictures are the files in `LCARS_PICTURES_DIR` (default
+`~/.local/share/lcars/pictures`), outside the repo, so a deploy never touches
+them. They come from two places:
+
+- **The Presto's photo library**, mirrored (`LCARS_PICTURES_URL`): photos added
+  on the upload page show on the panel within `LCARS_PICTURES_POLL_SECONDS`, and
+  ones hidden or deleted there leave it. The panel stores only a screen-sized
+  copy of each, keeps at most `LCARS_PICTURES_MAX` of them and
+  `LCARS_PICTURES_MAX_MB` (the newest kept), and fetches nothing while the disk
+  has less than `LCARS_PICTURES_MIN_FREE_MB` free.
+- **By hand**, from a computer: they're shown too, and the mirror never deletes them.
+
+      scp ~/Pictures/beach.jpg brick1982:.local/share/lcars/pictures/
+
+  JPEG, PNG and WebP work. Convert iPhone HEICs first (`heif-convert`, or
+  export as JPEG), unless `python3-pillow-heif` is installed on the panel.
+
+Nothing about the pictures goes into git, the logs or the metrics beyond counts
+and sizes (`lcars_pictures_*`, `lcars_slideshow_*`).
+
 # Notes
 
 - Although not implemented in the demo, an interpolator is provided to allow for animations. To see how this can be used, see the [LcarsMoveToMouse](https://github.com/tobykurien/rpi_lcars/blob/master/app/ui/widgets/sprite.py#L79-L101) widget, which smoothly follows screen touches/mouse clicks.
