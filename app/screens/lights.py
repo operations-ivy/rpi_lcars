@@ -1,7 +1,8 @@
 """The lights: one row per Home Assistant light (a Hue bulb, or a room or
-group, which Hue's integration also makes a light.*), named as Home
-Assistant names it, with its state and brightness, - and + for brightness,
-and a key that turns it on or off. Which lights is LCARS_LIGHTS.
+group, which Hue's integration also makes a light.*), named as
+LCARS_LIGHTS names it (else as Home Assistant does), with its state and
+brightness, - and + for brightness, and a key that turns it on or off.
+Which lights is LCARS_LIGHTS.
 
 Like THERMOSTAT, the controls work only while the lock allows it: otherwise
 they're greyed out and the sidebar's UNLOCK opens the keypad (SECURE locks
@@ -26,10 +27,10 @@ NAME_WIDTH = 250
 BRIGHTNESS_STEP = 10            # percent a tap
 
 
-def light_name(entity, attrs, names=None):
-    """The name LCARS_LIGHTS gives it, else Home Assistant's, else the entity's."""
-    name = (names or {}).get(entity) or attrs.get("friendly_name") or entity.split(".", 1)[-1].replace("_", " ")
-    return name.upper()
+def light_name(entity, attrs, names):
+    """The name LCARS_LIGHTS gives it (names), else Home Assistant's, else the entity's."""
+    fallback = attrs.get("friendly_name") or entity.split(".", 1)[-1].replace("_", " ")
+    return (names.get(entity) or fallback).upper()
 
 
 def brightness_pct(attrs):
@@ -99,7 +100,8 @@ class ScreenLights(PanelScreen):
         attrs = state.get("attributes") or {}
         value = state.get("state")
         out = {"on": value == "on", "pct": brightness_pct(attrs),
-               "available": value in ("on", "off"), "name": light_name(entity, attrs, self.panel.cfg.LIGHT_NAMES)}
+               "available": value in ("on", "off"),
+               "name": light_name(entity, attrs, self.panel.cfg.LIGHT_NAMES)}
         sent = self.sent.get(entity)
         if sent:
             out.update(sent[0])
