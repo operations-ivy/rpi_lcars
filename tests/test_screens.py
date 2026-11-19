@@ -830,6 +830,24 @@ def lights_rig(monkeypatch, lights=("light.bedroom", "light.hallway"), states=No
     return rig
 
 
+@pytest.mark.parametrize("text,entities,names", [
+    ("light.lamp=Office, light.lamp2 = Bedroom,light.living_room_lamp3=Living Room",
+     ["light.lamp", "light.lamp2", "light.living_room_lamp3"],
+     {"light.lamp": "Office", "light.lamp2": "Bedroom", "light.living_room_lamp3": "Living Room"}),
+    ("light.lamp,light.hallway=", ["light.lamp", "light.hallway"], {}),
+    ("", [], {}),
+])
+def test_parse_lights(text, entities, names):
+    assert config.parse_lights(text) == (entities, names)
+
+
+def test_lights_show_the_names_lcars_lights_gives(monkeypatch):
+    monkeypatch.setattr(config, "LIGHT_NAMES", {"light.bedroom": "Office"})
+    rig = lights_rig(monkeypatch)
+    assert "OFFICE" in rig.texts() and "BEDROOM" not in rig.texts()
+    assert "HALLWAY" in rig.texts()  # no name given: Home Assistant's
+
+
 def row_keys(rig, entity):
     return [k for k in rig.sprites(LcarsKey) if getattr(k, "row", None) and k.row.entity == entity]
 

@@ -26,8 +26,10 @@ NAME_WIDTH = 250
 BRIGHTNESS_STEP = 10            # percent a tap
 
 
-def light_name(entity, attrs):
-    return (attrs.get("friendly_name") or entity.split(".", 1)[-1].replace("_", " ")).upper()
+def light_name(entity, attrs, names=None):
+    """The name LCARS_LIGHTS gives it, else Home Assistant's, else the entity's."""
+    name = (names or {}).get(entity) or attrs.get("friendly_name") or entity.split(".", 1)[-1].replace("_", " ")
+    return name.upper()
 
 
 def brightness_pct(attrs):
@@ -97,7 +99,7 @@ class ScreenLights(PanelScreen):
         attrs = state.get("attributes") or {}
         value = state.get("state")
         out = {"on": value == "on", "pct": brightness_pct(attrs),
-               "available": value in ("on", "off"), "name": light_name(entity, attrs)}
+               "available": value in ("on", "off"), "name": light_name(entity, attrs, self.panel.cfg.LIGHT_NAMES)}
         sent = self.sent.get(entity)
         if sent:
             out.update(sent[0])
@@ -200,7 +202,7 @@ class ScreenLights(PanelScreen):
             w.visible = True
         light = self.shown(entity)
         if light is None:
-            row.name.set(light_name(entity, {}), colours.GREY_BLUE)
+            row.name.set(light_name(entity, {}, self.panel.cfg.LIGHT_NAMES), colours.GREY_BLUE)
             row.state.set("--", colours.GREY_BLUE)
             usable = False
         elif not light["available"]:
