@@ -95,10 +95,27 @@ ALERTS_POLL_SECONDS = _float("LCARS_ALERTS_POLL_SECONDS", 30)
 # place: no WIGLE button; brick9000's board still shows wigle-sync). It
 # takes ~10 s cold.
 WIGLE_URL = _str("LCARS_WIGLE_URL").rstrip("/")
+
+
+def parse_lights(text):
+    """LCARS_LIGHTS -> ([entity, ...], {entity: name}) for the ones named."""
+    entities, names = [], {}
+    for item in text.split(","):
+        entity, _, name = (part.strip() for part in item.partition("="))
+        if entity:
+            entities.append(entity)
+            if name:
+                names[entity] = name
+    return entities, names
+
+
 # The LIGHTS screen's lights: Home Assistant light entities, comma separated,
 # in the order shown (the first 5). A Hue room or group is a light.* too.
-# Empty: the screen says none are configured.
-LIGHTS = [e.strip() for e in _str("LCARS_LIGHTS").split(",") if e.strip()]
+# Each may carry the name the panel shows, after "=":
+#   LCARS_LIGHTS=light.lamp=Office,light.lamp2=Bedroom
+# (without one, Home Assistant's friendly name). Empty: the screen says none
+# are configured.
+LIGHTS, LIGHT_NAMES = parse_lights(_str("LCARS_LIGHTS"))
 WIGLE_POLL_SECONDS = _float("LCARS_WIGLE_POLL_SECONDS", 120)
 # Along the bottom of STATUS, one at a time: the weather's next
 # FORECAST_PERIODS 12-hour periods (0: none), or instead an RSS feed's top
