@@ -5,7 +5,9 @@
 # Like brick-cicd-config's brick1982/deploy: if the branch this follows
 # (LCARS_DEPLOY_BRANCH in the env file, master by default) has moved, test
 # the new commit in a scratch worktree, switch to it only if the tests pass,
-# then restart the kiosk.
+# then restart the kiosk, only if it's running: on brick1982 the neon panel
+# (brick-panel, its panel-select) may be the one on the screen, and a deploy
+# here must never take the screen back from it.
 set -eu
 repo=$(cd "$(dirname "$0")/.." && pwd)
 env_file=$HOME/.config/lcars/env
@@ -42,4 +44,4 @@ echo "deploy: $branch @ $(git rev-parse --short "$target") (was $(git rev-parse 
 if ! git diff --quiet "$current" "$target" -- deploy/; then
     echo "deploy: deploy/ changed; run deploy/install.sh to apply it" >&2
 fi
-sudo systemctl restart lcars-kiosk.service
+sudo systemctl try-restart lcars-kiosk.service

@@ -34,10 +34,16 @@ systemctl --user disable --now brick-arena.service 2>/dev/null || true
 
 sudo loginctl enable-linger "$USER"
 systemctl --user daemon-reload
-systemctl --user enable --now lcars-deploy.timer
 sudo systemctl daemon-reload
 sudo systemctl disable getty@tty1.service
-sudo systemctl enable lcars-kiosk.service
 sudo systemctl set-default graphical.target
+# The neon panel (brick-panel) may be the one in use: then LCARS is
+# installed but stays off, and panel-select lcars brings it back.
+if systemctl is-enabled --quiet brick-panel-kiosk.service 2>/dev/null; then
+    echo "LCARS panel installed but left off: the neon panel is in use (panel-select lcars to switch)."
+    exit 0
+fi
+systemctl --user enable --now lcars-deploy.timer
+sudo systemctl enable lcars-kiosk.service
 sudo systemctl restart lcars-kiosk.service
 echo "LCARS panel installed; the kiosk is on tty1 (journalctl -u lcars-kiosk)."

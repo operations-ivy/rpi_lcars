@@ -43,6 +43,14 @@ sudo -u pi xinit /usr/bin/python3 lcars.py
 The above assumes you want to run the interface from the ```/home/pi/rpi_lcars``` folder as the ```pi``` user. To run as root, simply omit the ```sudo -u pi``` bit.
 
 
+# Sharing brick1982 with the neon panel
+
+brick1982 can run this panel or the neon one (operations-ivy/brick-panel),
+one at a time: `panel-select lcars` or `panel-select neon`. While the neon
+panel is the one on the screen, this one never takes it back:
+`deploy/deploy` restarts the kiosk only if it's already running
+(`try-restart`), and `deploy/install.sh` installs but leaves it off.
+
 # The slideshow (brick1982)
 
 After 15 minutes without a touch by day, the panel becomes a picture frame:
